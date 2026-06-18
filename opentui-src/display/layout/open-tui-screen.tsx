@@ -10,7 +10,7 @@ import type { CheckboxPickerState } from "../../../src/ui/checkbox-picker.js";
 import type { PresentationEntry } from "../../presentation/types.js";
 import type { ComposerTokenVisuals } from "../../composer-tokens.js";
 import { createTextAttributes } from "@opentui/core";
-import { PresentationPanel } from "../../components/entry/presentation-panel.js";
+import { LogoBlock, PresentationPanel } from "../../components/entry/presentation-panel.js";
 import { VERSION } from "../../../src/version.js";
 import { GlowText } from "../glow-text.js";
 
@@ -309,7 +309,7 @@ export function OpenTuiScreen({
   // absolute terminal height so it never shifts when panels open.
   const welcomeCwd = shortenPath(process.cwd());
   const welcomeMetaLine = `v${VERSION} · ${welcomeCwd}`;
-  const welcomeStageHeight = 4;
+  const welcomeStageHeight = theme.branding.logoLines.length + 6;
   const welcomeTop = Math.max(
     1,
     Math.min(
@@ -608,6 +608,8 @@ export function OpenTuiScreen({
           flexDirection="column"
           alignItems="center"
         >
+          <LogoBlock lines={theme.branding.logoLines} color={theme.colors.accent} />
+          <text fg={theme.colors.accent} content="(•̀ᴗ•́)و" />
           <GlowText
             text="Fermi Here."
             fromColor={theme.colors.accent}
