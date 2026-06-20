@@ -619,6 +619,7 @@ export function OpenTuiApp({
   const voiceRecorderRef = useRef<VoiceRecorder | null>(null);
   const voiceStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const voiceSegmentsRef = useRef<string[]>([]);
+  const voiceTranscribingRef = useRef(false);
   const lastVoiceMutationRef = useRef<VoiceMutation | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const suppressComposerSyncRef = useRef(false);
@@ -1976,21 +1977,33 @@ export function OpenTuiApp({
     if (!transcript) return;
     if (transcript.startsWith("file:")) {
       const filePath = transcript.slice("file:".length).trim();
+      if (voiceTranscribingRef.current) {
+        unlink(filePath, () => {});
+        return;
+      }
       const sttConfig = resolveVoiceApiConfig(voice, "stt");
       if (!sttConfig) {
         unlink(filePath, () => {});
         showVoiceStatus("缺少 voice.stt API key");
         return;
       }
+      voiceTranscribingRef.current = true;
       showVoiceStatus("正在转录语音...");
       void transcribeVoiceFile({
         filePath,
         config: sttConfig,
       }).then((text) => {
         unlink(filePath, () => {});
+        voiceTranscribingRef.current = false;
+        if (!text.trim()) {
+          showVoiceStatus("未听清，继续说或按 Enter 确认");
+          return;
+        }
+        showVoiceStatus(`听到: ${text.trim().slice(0, 60)}`);
         handleVoiceTranscript(text);
       }).catch((err) => {
         unlink(filePath, () => {});
+        voiceTranscribingRef.current = false;
         showVoiceStatus(`转录失败: ${err instanceof Error ? err.message : String(err)}`);
       });
       return;
@@ -2081,6 +2094,7 @@ export function OpenTuiApp({
     if (voiceEnabled) {
       voiceRecorderRef.current?.stop();
       voiceRecorderRef.current = null;
+      voiceTranscribingRef.current = false;
       setVoiceEnabled(false);
       replaceVoiceSegments([]);
       setVoiceStatus(null);
@@ -2649,6 +2663,13 @@ export function OpenTuiApp({
 
     if (isVoiceHotkey(event, voice?.hotkey)) {
       toggleVoiceMode();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    if (voiceEnabled && (event.name === "return" || event.name === "enter")) {
+      handleVoiceTranscript("确认");
       event.preventDefault();
       event.stopPropagation();
       return;

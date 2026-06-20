@@ -5,7 +5,7 @@ export interface VoiceMutation {
   afterText: string;
 }
 
-const CONFIRM_PHRASES = new Set(["确认", "转录吧", "写进去", "ok", "okay", "就这样"]);
+const CONFIRM_PHRASES = new Set(["确认", "确认吧", "确定", "确定吧", "转录吧", "写进去", "放进去", "提交语音", "ok", "okay", "就这样"]);
 const DIRECT_PHRASES = new Set(["原文输入", "直接输入", "不用改写", "照原样写进去"]);
 const UNDO_PHRASES = new Set(["撤回刚才语音", "恢复刚才那次修改", "取消刚才输入"]);
 const CLEAR_PHRASES = new Set(["清空这段", "取消这段"]);
@@ -52,7 +52,7 @@ function clipTail(input: string, maxChars: number): string {
   return `...${chars.slice(-maxChars).join("")}`;
 }
 
-const VOICE_CONFIRM_HINT = "说“确认”放入输入框";
+const VOICE_CONFIRM_HINT = "说“写进去”或按 Enter 放入输入框";
 
 export function formatVoiceHint(segments: readonly string[], status: string | null, maxPreviewChars = 64): string {
   const cleanStatus = status?.trim();
