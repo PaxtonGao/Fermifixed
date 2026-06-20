@@ -25,6 +25,7 @@ const NOISE_TRANSCRIPTS = new Set([
   "鼠标点击声",
   "风声",
 ]);
+const HALLUCINATED_PREFIX_RE = /^\s*ლ{3,}\s*/;
 
 function normalizeVoiceText(input: string): string {
   return input.trim().toLowerCase().replace(/[()[\]{}"'`，。！？,.!?\s_-]+/g, "");
@@ -48,7 +49,11 @@ export function classifyVoiceTranscript(input: string): VoiceCommand {
 }
 
 export function isVoiceNoiseTranscript(input: string): boolean {
-  return isShortControlPhrase(input) && NOISE_TRANSCRIPTS.has(normalizeVoiceText(input));
+  return isShortControlPhrase(input) && (NOISE_TRANSCRIPTS.has(normalizeVoiceText(input)) || HALLUCINATED_PREFIX_RE.test(input.trim()));
+}
+
+export function cleanVoiceTranscript(input: string): string {
+  return input.replace(HALLUCINATED_PREFIX_RE, "").trim();
 }
 
 export function isVoiceDraftEdit(input: string): boolean {

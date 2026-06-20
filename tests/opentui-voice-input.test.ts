@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import {
   appendVoiceText,
   classifyVoiceTranscript,
+  cleanVoiceTranscript,
   formatVoiceHint,
   getVoiceUndoText,
   isVoiceDraftEdit,
@@ -64,10 +65,16 @@ describe("opentui voice input", () => {
     expect(isVoiceNoiseTranscript("wind noise")).toBe(true);
     expect(isVoiceNoiseTranscript("[BLANK_AUDIO]")).toBe(true);
     expect(isVoiceNoiseTranscript("键盘声")).toBe(true);
+    expect(isVoiceNoiseTranscript("ლლლლლლლლ")).toBe(true);
   });
 
   it("keeps normal requests that mention noise words", () => {
     expect(isVoiceNoiseTranscript("帮我修 clicking 这个测试")).toBe(false);
     expect(isVoiceNoiseTranscript("分析 wind noise 变量")).toBe(false);
+  });
+
+  it("removes repeated hallucinated prefix glyphs before normal speech", () => {
+    expect(cleanVoiceTranscript("ლლლლლლლლ 你好 现在可以听见我说话吗")).toBe("你好 现在可以听见我说话吗");
+    expect(cleanVoiceTranscript("你好 ლლლლ")).toBe("你好 ლლლლ");
   });
 });

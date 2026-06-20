@@ -131,7 +131,7 @@ import { OpenTuiScreen } from "./display/layout/open-tui-screen.js";
 import { resolveModelNameColor } from "./display/utils/model.js";
 import { getDeleteToVisualLineStartAction } from "./input/delete-to-visual-line-start.js";
 import { appendPromptHistory, getPromptHistoryNavigationDirection, navigatePromptHistory } from "./input/prompt-history.js";
-import { appendVoiceText, classifyVoiceTranscript, formatVoiceHint, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, isVoiceNoiseTranscript, type VoiceMutation } from "./voice/voice-input.js";
+import { appendVoiceText, classifyVoiceTranscript, cleanVoiceTranscript, formatVoiceHint, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, isVoiceNoiseTranscript, type VoiceMutation } from "./voice/voice-input.js";
 import { rewriteVoicePrompt, transcribeVoiceFile, type VoiceApiConfig } from "./voice/voice-api.js";
 import { startVoiceRecorder, type VoiceRecorder } from "./voice/voice-runtime.js";
 import type { VoiceSettings } from "../src/persistence.js";
@@ -1995,16 +1995,17 @@ export function OpenTuiApp({
       }).then((text) => {
         unlink(filePath, () => {});
         voiceTranscribingRef.current = false;
-        if (!text.trim()) {
+        const cleanText = cleanVoiceTranscript(text);
+        if (!cleanText) {
           showVoiceStatus("未听清，继续说或按 Enter 确认");
           return;
         }
-        if (isVoiceNoiseTranscript(text)) {
+        if (isVoiceNoiseTranscript(cleanText)) {
           showVoiceStatus("忽略噪声，继续说或按 Enter 确认");
           return;
         }
-        showVoiceStatus(`听到: ${text.trim().slice(0, 60)}`);
-        handleVoiceTranscript(text);
+        showVoiceStatus(`听到: ${cleanText.slice(0, 60)}`);
+        handleVoiceTranscript(cleanText);
       }).catch((err) => {
         unlink(filePath, () => {});
         voiceTranscribingRef.current = false;
