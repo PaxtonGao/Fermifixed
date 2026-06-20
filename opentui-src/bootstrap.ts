@@ -15,6 +15,7 @@ import {
   parseSettingsOverrides,
   settingsToConfigInputs,
 } from "../src/persistence.js";
+import type { VoiceSettings } from "../src/persistence.js";
 import { loadDotenv } from "../src/dotenv.js";
 import { getFermiHomeDir } from "../src/home-path.js";
 import {
@@ -87,6 +88,8 @@ export interface OpenTuiRuntime {
   diffDisplay: "compact" | "full";
   /** Persisted global preference for copy-on-select. Default: true. */
   copyOnSelect: boolean;
+  /** OpenTUI voice input settings. */
+  voice: VoiceSettings | undefined;
 }
 
 export async function bootstrapOpenTuiRuntime(opts?: {
@@ -285,5 +288,6 @@ export async function bootstrapOpenTuiRuntime(opts?: {
     themeModePref,
     diffDisplay,
     copyOnSelect,
+    voice: settings.voice,
   };
 }

@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/react */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { existsSync } from "node:fs";
 
 import { clipboard } from "../src/platform/index.js";
 
@@ -130,6 +131,10 @@ import { OpenTuiScreen } from "./display/layout/open-tui-screen.js";
 import { resolveModelNameColor } from "./display/utils/model.js";
 import { getDeleteToVisualLineStartAction } from "./input/delete-to-visual-line-start.js";
 import { appendPromptHistory, getPromptHistoryNavigationDirection, navigatePromptHistory } from "./input/prompt-history.js";
+import { appendVoiceText, classifyVoiceTranscript, getVoiceUndoText, isVoiceDraftEdit, type VoiceMutation } from "./voice/voice-input.js";
+import { rewriteVoicePrompt, transcribeVoiceFile, type VoiceApiConfig } from "./voice/voice-api.js";
+import { startVoiceRecorder, type VoiceRecorder } from "./voice/voice-runtime.js";
+import type { VoiceSettings } from "../src/persistence.js";
 
 export interface OpenTuiAppProps {
   session: TuiSession;
@@ -146,6 +151,8 @@ export interface OpenTuiAppProps {
   diffDisplay: "compact" | "full";
   /** Whether copy-on-select (auto-copy a drag selection) is enabled. Default: true. */
   copyOnSelect: boolean;
+  /** OpenTUI voice input settings. */
+  voice?: VoiceSettings;
   /**
    * Terminal's default foreground (OSC 10 query at startup). Used as body
    * text colour when the user is in auto mode so the TUI matches their
@@ -157,6 +164,10 @@ export interface OpenTuiAppProps {
 
 const CTRL_C_EXIT_WINDOW_MS = 2000;
 const DOUBLE_ESC_WINDOW_MS = 500;
+const DEFAULT_VOICE_STT_BASE_URL = "https://api.openai.com/v1";
+const DEFAULT_VOICE_STT_MODEL = "gpt-4o-mini-transcribe";
+const DEFAULT_VOICE_REWRITE_BASE_URL = "https://api.deepseek.com";
+const DEFAULT_VOICE_REWRITE_MODEL = "deepseek-chat";
 const CUSTOM_EMPTY_HINT =
   'Custom answer is empty. Please enter an answer first, or choose "Discuss further" instead.';
 const GOODBYE_MESSAGES = [
@@ -212,6 +223,36 @@ function isCommandOverlayEligible(value: string): boolean {
 
 function isFileOverlayEligible(value: string, cursorOffset: number): boolean {
   return findFileReferenceQuery(value, cursorOffset) !== null;
+}
+
+function resolveVoiceApiConfig(
+  settings: VoiceSettings | undefined,
+  kind: "stt" | "rewrite",
+): VoiceApiConfig | null {
+  const entry = kind === "stt" ? settings?.stt : settings?.rewrite;
+  const apiKey = entry?.api_key ?? (entry?.api_key_env ? process.env[entry.api_key_env] : undefined);
+  const defaultBaseUrl = kind === "stt" ? DEFAULT_VOICE_STT_BASE_URL : DEFAULT_VOICE_REWRITE_BASE_URL;
+  const defaultModel = kind === "stt" ? DEFAULT_VOICE_STT_MODEL : DEFAULT_VOICE_REWRITE_MODEL;
+  if (!apiKey?.trim()) return null;
+  return {
+    baseUrl: entry?.base_url ?? defaultBaseUrl,
+    model: entry?.model ?? defaultModel,
+    apiKey,
+  };
+}
+
+function isVoiceHotkey(
+  event: { name: string; ctrl?: boolean; meta?: boolean; option?: boolean; shift?: boolean; super?: boolean },
+  hotkey: string | undefined,
+): boolean {
+  const parts = (hotkey ?? "ctrl+r").toLowerCase().replace(/\s+/g, "").split("+").filter(Boolean);
+  const key = parts.pop();
+  if (!key || event.name !== key) return false;
+  const modifiers = new Set(parts);
+  return Boolean(event.ctrl) === (modifiers.has("ctrl") || modifiers.has("control"))
+    && Boolean(event.shift) === modifiers.has("shift")
+    && Boolean(event.meta) === (modifiers.has("meta") || modifiers.has("alt") || modifiers.has("option"))
+    && Boolean(event.super) === (modifiers.has("super") || modifiers.has("cmd") || modifiers.has("command"));
 }
 
 async function copyToClipboard(text: string, rendererCopy: (text: string) => boolean): Promise<boolean> {
@@ -313,6 +354,7 @@ export function OpenTuiApp({
   terminalDefaultFg: initialTerminalFg = null,
   diffDisplay: initialDiffDisplay,
   copyOnSelect: initialCopyOnSelect,
+  voice,
 }: OpenTuiAppProps): React.ReactNode {
   const renderer = useRenderer();
   const terminal = useTerminalDimensions();
@@ -530,6 +572,9 @@ export function OpenTuiApp({
   }, [selectedChildId, session, openShellDetailTab]);
 
   const [hint, setHint] = useState<string | null>(null);
+  const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceSegments, setVoiceSegments] = useState<string[]>([]);
   const [updateToast, setUpdateToast] = useState<{ phase: import("./display/overlays/update-toast.js").UpdateToastPhase; version?: string; error?: string } | null>(null);
   const [mcpFailures, setMcpFailures] = useState<import("./display/overlays/mcp-toast.js").McpFailure[] | null>(null);
   // Transient copy-on-select toast: a body string while visible, null when hidden.
@@ -578,6 +623,10 @@ export function OpenTuiApp({
   const lastEscRef = useRef(0);
   const closingRef = useRef(false);
   const closingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voiceRecorderRef = useRef<VoiceRecorder | null>(null);
+  const voiceStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voiceSegmentsRef = useRef<string[]>([]);
+  const lastVoiceMutationRef = useRef<VoiceMutation | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const suppressComposerSyncRef = useRef(false);
   // Prompt-history position and live-draft preservation live in
@@ -596,6 +645,9 @@ export function OpenTuiApp({
   const pickerNoteInputRef = useRef<InputRenderable | null>(null);
   const [pickerNoteValue, setPickerNoteValue] = useState("");
   const colors = theme.colors;
+  const voiceHint = voiceEnabled
+    ? (voiceStatus ?? (voiceSegments.length > 0 ? `已暂存 ${voiceSegments.length} 段，等待确认` : "语音转录开启"))
+    : null;
   const composerTokenColorsRef = useRef(colors);
   const markdownStyle = theme.markdownStyle;
   if (!composerTokenVisualsRef.current || composerTokenColorsRef.current !== colors) {
@@ -1050,6 +1102,16 @@ export function OpenTuiApp({
     syncComposerState();
   }, [syncComposerState]);
 
+  const replaceVoiceSegments = useCallback((next: string[] | ((current: string[]) => string[])) => {
+    const value = typeof next === "function" ? next(voiceSegmentsRef.current) : next;
+    voiceSegmentsRef.current = value;
+    setVoiceSegments(value);
+  }, []);
+
+  const replaceLastVoiceMutation = useCallback((next: VoiceMutation | null) => {
+    lastVoiceMutationRef.current = next;
+  }, []);
+
   const clearInput = useCallback(() => {
     pasteCounterRef.current.reset();
     lastInputValueRef.current = "";
@@ -1249,6 +1311,15 @@ export function OpenTuiApp({
     setHint(message);
     setTimeout(() => {
       setHint((current) => (current === message ? null : current));
+    }, durationMs);
+  }, []);
+
+  const showVoiceStatus = useCallback((message: string, durationMs = 2500) => {
+    setVoiceStatus(message);
+    if (voiceStatusTimerRef.current) clearTimeout(voiceStatusTimerRef.current);
+    voiceStatusTimerRef.current = setTimeout(() => {
+      setVoiceStatus((current) => (current === message ? null : current));
+      voiceStatusTimerRef.current = null;
     }, durationMs);
   }, []);
 
@@ -1902,6 +1973,152 @@ export function OpenTuiApp({
     if (!composer) return draftValue;
     return serializeComposerText(composer, ensureComposerTokenType(composer));
   }, [draftValue]);
+
+  const applyVoiceComposerText = useCallback((nextText: string) => {
+    const beforeText = getSerializedComposerInput();
+    setComposerText(nextText);
+    replaceLastVoiceMutation({ beforeText, afterText: nextText });
+  }, [getSerializedComposerInput, replaceLastVoiceMutation, setComposerText]);
+
+  const handleVoiceTranscript = useCallback((rawTranscript: string) => {
+    const transcript = rawTranscript.trim();
+    if (!transcript) return;
+    if (transcript.startsWith("file:")) {
+      const sttConfig = resolveVoiceApiConfig(voice, "stt");
+      if (!sttConfig) {
+        showVoiceStatus("缺少 voice.stt API key");
+        return;
+      }
+      void transcribeVoiceFile({
+        filePath: transcript.slice("file:".length).trim(),
+        config: sttConfig,
+      }).then(handleVoiceTranscript).catch((err) => {
+        showVoiceStatus(`转录失败: ${err instanceof Error ? err.message : String(err)}`);
+      });
+      return;
+    }
+
+    const command = classifyVoiceTranscript(transcript);
+    if (command === "undo") {
+      const current = getSerializedComposerInput();
+      const undone = getVoiceUndoText(current, lastVoiceMutationRef.current);
+      if (undone === null) {
+        showVoiceStatus("草稿已变化，未自动撤回");
+        return;
+      }
+      setComposerText(undone);
+      replaceLastVoiceMutation(null);
+      showVoiceStatus("已撤回刚才语音");
+      return;
+    }
+    if (command === "clear") {
+      replaceVoiceSegments([]);
+      showVoiceStatus("已清空语音缓存");
+      return;
+    }
+    if (command === "direct") {
+      const raw = voiceSegmentsRef.current.join("\n").trim();
+      if (!raw) {
+        showVoiceStatus("没有待写入的语音");
+        return;
+      }
+      const nextText = appendVoiceText(getSerializedComposerInput(), raw, voice?.append_separator ?? "\n");
+      applyVoiceComposerText(nextText);
+      replaceVoiceSegments([]);
+      showVoiceStatus("已写入输入框");
+      return;
+    }
+    if (command === "confirm") {
+      const raw = voiceSegmentsRef.current.join("\n").trim();
+      if (!raw) {
+        showVoiceStatus("没有待改写的语音");
+        return;
+      }
+      const rewriteConfig = resolveVoiceApiConfig(voice, "rewrite");
+      if (!rewriteConfig) {
+        showVoiceStatus("缺少 voice.rewrite API key");
+        return;
+      }
+      const currentDraft = getSerializedComposerInput();
+      showVoiceStatus("正在改写语音输入...");
+      void rewriteVoicePrompt({
+        transcript: raw,
+        currentDraft,
+        mode: isVoiceDraftEdit(raw) ? "edit" : "append",
+        context: {
+          cwd: process.cwd(),
+          projectName: process.cwd().split(/[\\/]/).pop() || process.cwd(),
+          markers: ["package.json", "pyproject.toml", "Cargo.toml", "go.mod"].filter((name) => existsSync(name)),
+        },
+        config: rewriteConfig,
+      }).then((rewritten) => {
+        if (!rewritten) {
+          showVoiceStatus("改写结果为空");
+          return;
+        }
+        const nextText = isVoiceDraftEdit(raw)
+          ? rewritten
+          : appendVoiceText(currentDraft, rewritten, voice?.append_separator ?? "\n");
+        applyVoiceComposerText(nextText);
+        replaceVoiceSegments([]);
+        showVoiceStatus("已写入输入框");
+      }).catch((err) => {
+        showVoiceStatus(`改写失败: ${err instanceof Error ? err.message : String(err)}`);
+      });
+      return;
+    }
+
+    replaceVoiceSegments((current) => [...current, transcript]);
+  }, [
+    applyVoiceComposerText,
+    getSerializedComposerInput,
+    replaceLastVoiceMutation,
+    replaceVoiceSegments,
+    setComposerText,
+    showVoiceStatus,
+    voice,
+  ]);
+
+  const toggleVoiceMode = useCallback(() => {
+    if (voiceEnabled) {
+      voiceRecorderRef.current?.stop();
+      voiceRecorderRef.current = null;
+      setVoiceEnabled(false);
+      replaceVoiceSegments([]);
+      setVoiceStatus(null);
+      showHint("语音转录关闭");
+      return;
+    }
+
+    if (voice?.enabled === false) {
+      showHint("语音输入未启用");
+      return;
+    }
+    if (!voice?.recorder_command?.trim()) {
+      showHint("缺少 voice.recorder_command");
+      return;
+    }
+    if (!resolveVoiceApiConfig(voice, "rewrite")) {
+      showHint("缺少 voice.rewrite API key");
+      return;
+    }
+    voiceRecorderRef.current = startVoiceRecorder({
+      command: voice.recorder_command,
+      onTranscript: handleVoiceTranscript,
+      onError: (message) => showVoiceStatus(message, 5000),
+    });
+    setVoiceEnabled(true);
+    replaceVoiceSegments([]);
+    showHint("语音转录开启");
+  }, [handleVoiceTranscript, replaceVoiceSegments, showHint, showVoiceStatus, voice, voiceEnabled]);
+
+  useEffect(() => {
+    return () => {
+      voiceRecorderRef.current?.stop();
+      voiceRecorderRef.current = null;
+      if (voiceStatusTimerRef.current) clearTimeout(voiceStatusTimerRef.current);
+    };
+  }, []);
 
   // Commands that run regardless of streaming state. /copy is here so its
   // "wait until the agent finishes" hint actually fires (otherwise the
@@ -2876,6 +3093,13 @@ export function OpenTuiApp({
       }
     }
 
+    if (isVoiceHotkey(event, voice?.hotkey)) {
+      toggleVoiceMode();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (event.name === "pageup") {
       const sb = getActiveScrollBox();
       sb?.scrollBy(-(sb.height / 2));
@@ -3455,7 +3679,7 @@ export function OpenTuiApp({
       thinkingSuffix={childSnapshot ? "" : thinkingSuffix}
       modelColor={effectiveModelColor}
       turnElapsed={effectiveElapsed}
-      hint={hint}
+      hint={voiceHint ?? hint}
       composerTokenVisuals={composerTokenVisuals}
       keyBindings={COMPOSER_KEY_BINDINGS}
       onSubmit={() => {

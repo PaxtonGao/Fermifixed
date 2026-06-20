@@ -627,6 +627,9 @@ export interface FermiSettings {
   // -- MCP Servers (global + local merge) --
   mcp_servers?: Record<string, MCPServerSettingsEntry>;
 
+  // -- Voice input (OpenTUI only) --
+  voice?: VoiceSettings;
+
   // -- Updates --
   /**
    * Background update behavior. Default: true.
@@ -649,6 +652,22 @@ export interface FermiSettings {
     /** Level-2 trigger (percentage). Default: 75. */
     level2?: number;
   };
+}
+
+export interface VoiceSettings {
+  enabled?: boolean;
+  hotkey?: string;
+  append_separator?: string;
+  recorder_command?: string;
+  stt?: VoiceApiSettings;
+  rewrite?: VoiceApiSettings;
+}
+
+export interface VoiceApiSettings {
+  base_url?: string;
+  model?: string;
+  api_key_env?: string;
+  api_key?: string;
 }
 
 /**

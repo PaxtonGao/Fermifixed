@@ -339,6 +339,7 @@ export async function launchTui(): Promise<void> {
         terminalDefaultFg: currentTerminalFg,
         diffDisplay: runtime.diffDisplay,
         copyOnSelect: runtime.copyOnSelect,
+        voice: runtime.voice,
       }),
     );
   };
