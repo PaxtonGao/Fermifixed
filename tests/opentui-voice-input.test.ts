@@ -9,6 +9,7 @@ import {
   isVoiceDraftEdit,
   isVoiceHotkey,
   isVoiceNoiseTranscript,
+  resolveVoiceConfirmAction,
 } from "../opentui-src/voice/voice-input.js";
 
 describe("opentui voice input", () => {
@@ -36,6 +37,12 @@ describe("opentui voice input", () => {
   it("appends voice text on a new line when composer already has text", () => {
     expect(appendVoiceText("分析启动失败", "查看日志")).toBe("分析启动失败\n查看日志");
     expect(appendVoiceText("", "查看日志")).toBe("查看日志");
+  });
+
+  it("waits for in-flight transcription before confirming", () => {
+    expect(resolveVoiceConfirmAction(false, true)).toBe("rewrite");
+    expect(resolveVoiceConfirmAction(true, false)).toBe("wait");
+    expect(resolveVoiceConfirmAction(false, false)).toBe("empty");
   });
 
   it("shows recent transcript text in the voice hint without growing unbounded", () => {

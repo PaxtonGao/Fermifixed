@@ -131,7 +131,7 @@ import { OpenTuiScreen } from "./display/layout/open-tui-screen.js";
 import { resolveModelNameColor } from "./display/utils/model.js";
 import { getDeleteToVisualLineStartAction } from "./input/delete-to-visual-line-start.js";
 import { appendPromptHistory, getPromptHistoryNavigationDirection, navigatePromptHistory } from "./input/prompt-history.js";
-import { appendVoiceText, classifyVoiceTranscript, cleanVoiceTranscript, formatVoiceHint, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, isVoiceNoiseTranscript, type VoiceMutation } from "./voice/voice-input.js";
+import { appendVoiceText, classifyVoiceTranscript, cleanVoiceTranscript, formatVoiceHint, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, isVoiceNoiseTranscript, resolveVoiceConfirmAction, type VoiceMutation } from "./voice/voice-input.js";
 import { rewriteVoicePrompt, transcribeVoiceFile, type VoiceApiConfig } from "./voice/voice-api.js";
 import { startVoiceRecorder, type VoiceRecorder } from "./voice/voice-runtime.js";
 import type { VoiceSettings } from "../src/persistence.js";
@@ -632,6 +632,7 @@ export function OpenTuiApp({
   const voiceStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const voiceSegmentsRef = useRef<string[]>([]);
   const voiceTranscribingRef = useRef(false);
+  const voiceConfirmAfterTranscriptionRef = useRef(false);
   const lastVoiceMutationRef = useRef<VoiceMutation | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const suppressComposerSyncRef = useRef(false);
@@ -2018,6 +2019,10 @@ export function OpenTuiApp({
         }
         showVoiceStatus(`听到: ${cleanText.slice(0, 60)}`);
         handleVoiceTranscript(cleanText);
+        if (voiceConfirmAfterTranscriptionRef.current) {
+          voiceConfirmAfterTranscriptionRef.current = false;
+          handleVoiceTranscript("确认");
+        }
       }).catch((err) => {
         unlink(filePath, () => {});
         voiceTranscribingRef.current = false;
@@ -2058,7 +2063,13 @@ export function OpenTuiApp({
     }
     if (command === "confirm") {
       const raw = voiceSegmentsRef.current.join("\n").trim();
-      if (!raw) {
+      const confirmAction = resolveVoiceConfirmAction(voiceTranscribingRef.current, Boolean(raw));
+      if (confirmAction === "wait") {
+        voiceConfirmAfterTranscriptionRef.current = true;
+        showVoiceStatus("转录完成后自动改写");
+        return;
+      }
+      if (confirmAction === "empty") {
         showVoiceStatus("没有待改写的语音");
         return;
       }
@@ -2112,6 +2123,7 @@ export function OpenTuiApp({
       voiceRecorderRef.current?.stop();
       voiceRecorderRef.current = null;
       voiceTranscribingRef.current = false;
+      voiceConfirmAfterTranscriptionRef.current = false;
       setVoiceEnabled(false);
       replaceVoiceSegments([]);
       setVoiceStatus(null);
