@@ -167,6 +167,9 @@ const DOUBLE_ESC_WINDOW_MS = 500;
 const DEFAULT_VOICE_STT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_VOICE_STT_MODEL = "whisper-1";
 const DEFAULT_VOICE_STT_API_KEY_ENV = "OPENAI_API_KEY";
+const DASHSCOPE_FUN_ASR_BASE_URL = "wss://dashscope.aliyuncs.com/api-ws/v1/inference";
+const DASHSCOPE_FUN_ASR_MODEL = "fun-asr-realtime";
+const DASHSCOPE_FUN_ASR_API_KEY_ENV = "DASHSCOPE_API_KEY";
 const DEFAULT_VOICE_REWRITE_BASE_URL = "https://api.deepseek.com";
 const DEFAULT_VOICE_REWRITE_MODEL = "deepseek-chat";
 const DEFAULT_VOICE_REWRITE_API_KEY_ENV = "FERMI_DEEPSEEK_API_KEY";
@@ -235,16 +238,25 @@ function resolveVoiceApiConfig(
   if (kind === "stt" && entry?.local_command?.trim()) {
     return { localCommand: entry.local_command };
   }
-  const defaultApiKeyEnv = kind === "stt" ? DEFAULT_VOICE_STT_API_KEY_ENV : DEFAULT_VOICE_REWRITE_API_KEY_ENV;
+  const isDashScopeFunAsr = kind === "stt" && entry?.provider === "dashscope-fun-asr";
+  const defaultApiKeyEnv = isDashScopeFunAsr
+    ? DASHSCOPE_FUN_ASR_API_KEY_ENV
+    : kind === "stt" ? DEFAULT_VOICE_STT_API_KEY_ENV : DEFAULT_VOICE_REWRITE_API_KEY_ENV;
   const apiKeyEnv = entry?.api_key_env ?? defaultApiKeyEnv;
   const apiKey = entry?.api_key ?? process.env[apiKeyEnv];
-  const defaultBaseUrl = kind === "stt" ? DEFAULT_VOICE_STT_BASE_URL : DEFAULT_VOICE_REWRITE_BASE_URL;
-  const defaultModel = kind === "stt" ? DEFAULT_VOICE_STT_MODEL : DEFAULT_VOICE_REWRITE_MODEL;
+  const defaultBaseUrl = isDashScopeFunAsr
+    ? DASHSCOPE_FUN_ASR_BASE_URL
+    : kind === "stt" ? DEFAULT_VOICE_STT_BASE_URL : DEFAULT_VOICE_REWRITE_BASE_URL;
+  const defaultModel = isDashScopeFunAsr
+    ? DASHSCOPE_FUN_ASR_MODEL
+    : kind === "stt" ? DEFAULT_VOICE_STT_MODEL : DEFAULT_VOICE_REWRITE_MODEL;
   if (!apiKey?.trim()) return null;
   return {
+    provider: entry?.provider,
     baseUrl: entry?.base_url ?? defaultBaseUrl,
     model: entry?.model ?? defaultModel,
     apiKey,
+    workspaceId: entry?.workspace_id,
   };
 }
 

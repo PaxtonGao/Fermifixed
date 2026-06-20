@@ -664,10 +664,12 @@ export interface VoiceSettings {
 }
 
 export interface VoiceApiSettings {
+  provider?: string;
   base_url?: string;
   model?: string;
   api_key_env?: string;
   api_key?: string;
+  workspace_id?: string;
   local_command?: string;
 }
 

@@ -88,6 +88,11 @@ describe("saveSettings", () => {
         enabled: true,
         hotkey: "ctrl+r",
         recorder_command: "printf 'hello\\n'",
+        stt: {
+          provider: "dashscope-fun-asr",
+          api_key_env: "DASHSCOPE_API_KEY",
+          workspace_id: "ws_123",
+        },
         rewrite: {
           base_url: "https://api.deepseek.com",
           model: "deepseek-v4-flash",
@@ -100,6 +105,11 @@ describe("saveSettings", () => {
       enabled: true,
       hotkey: "ctrl+r",
       recorder_command: "printf 'hello\\n'",
+      stt: {
+        provider: "dashscope-fun-asr",
+        api_key_env: "DASHSCOPE_API_KEY",
+        workspace_id: "ws_123",
+      },
       rewrite: {
         base_url: "https://api.deepseek.com",
         model: "deepseek-v4-flash",

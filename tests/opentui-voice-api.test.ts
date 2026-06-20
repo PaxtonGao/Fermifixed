@@ -1,4 +1,7 @@
 import { describe, expect, it } from "bun:test";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import { rewriteVoicePrompt, transcribeVoiceFile } from "../opentui-src/voice/voice-api.js";
 
@@ -52,6 +55,102 @@ describe("opentui voice api", () => {
     });
 
     expect(text).toBe("本地转录 /tmp/test.wav");
+  });
+
+  it("can transcribe with DashScope Fun-ASR over WebSocket", async () => {
+    const filePath = join(mkdtempSync(join(tmpdir(), "fermi-voice-api-")), "test.wav");
+    writeFileSync(filePath, Buffer.from([1, 2, 3, 4]));
+    const sent: unknown[] = [];
+    const sockets: Array<{ url: string; headers?: Record<string, string> }> = [];
+    class FakeWebSocket {
+      onopen: (() => void) | null = null;
+      onmessage: ((event: { data: string }) => void) | null = null;
+      onerror: ((event: { error?: unknown }) => void) | null = null;
+      onclose: (() => void) | null = null;
+
+      constructor(url: string, init?: { headers?: Record<string, string> }) {
+        sockets.push({ url, headers: init?.headers });
+        queueMicrotask(() => this.onopen?.());
+      }
+
+      send(data: unknown) {
+        sent.push(data);
+        const action = typeof data === "string" ? JSON.parse(data).header?.action : null;
+        if (action === "run-task") {
+          queueMicrotask(() => this.onmessage?.({
+            data: JSON.stringify({ header: { event: "task-started" } }),
+          }));
+        } else if (action === "finish-task") {
+          queueMicrotask(() => {
+            this.onmessage?.({
+              data: JSON.stringify({
+                header: { event: "result-generated" },
+                payload: { output: { sentence: { text: "打开前端", sentence_end: true } } },
+              }),
+            });
+            this.onmessage?.({ data: JSON.stringify({ header: { event: "task-finished" } }) });
+          });
+        }
+      }
+
+      close() {}
+    }
+
+    const text = await transcribeVoiceFile({
+      filePath,
+      config: { provider: "dashscope-fun-asr", apiKey: "secret" },
+      webSocketFactory: (url, init) => new FakeWebSocket(url, init),
+    });
+
+    expect(text).toBe("打开前端");
+    expect(sockets[0]).toEqual({
+      url: "wss://dashscope.aliyuncs.com/api-ws/v1/inference",
+      headers: { Authorization: "Bearer secret" },
+    });
+    const runTask = JSON.parse(sent[0] as string);
+    expect(runTask.header.action).toBe("run-task");
+    expect(runTask.payload.model).toBe("fun-asr-realtime");
+    expect(runTask.payload.parameters).toEqual({ sample_rate: 16000, format: "wav" });
+    expect(sent.some((item) => item instanceof ArrayBuffer)).toBe(true);
+    expect(JSON.parse(sent.at(-1) as string).header.action).toBe("finish-task");
+  });
+
+  it("reports DashScope Fun-ASR task failures", async () => {
+    const filePath = join(mkdtempSync(join(tmpdir(), "fermi-voice-api-")), "test.wav");
+    writeFileSync(filePath, Buffer.from([1]));
+    class FakeWebSocket {
+      onopen: (() => void) | null = null;
+      onmessage: ((event: { data: string }) => void) | null = null;
+      onerror: ((event: { error?: unknown }) => void) | null = null;
+      onclose: (() => void) | null = null;
+
+      constructor() {
+        queueMicrotask(() => this.onopen?.());
+      }
+
+      send(data: unknown) {
+        if (typeof data !== "string") return;
+        if (JSON.parse(data).header?.action === "run-task") {
+          queueMicrotask(() => this.onmessage?.({
+            data: JSON.stringify({
+              header: {
+                event: "task-failed",
+                error_code: "InvalidApiKey",
+                error_message: "bad key",
+              },
+            }),
+          }));
+        }
+      }
+
+      close() {}
+    }
+
+    await expect(transcribeVoiceFile({
+      filePath,
+      config: { provider: "dashscope-fun-asr", apiKey: "bad" },
+      webSocketFactory: () => new FakeWebSocket(),
+    })).rejects.toThrow("InvalidApiKey bad key");
   });
 
   it("keeps the useful tail of local transcription errors", async () => {
