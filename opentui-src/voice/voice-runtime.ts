@@ -44,15 +44,17 @@ if permission == .denied || permission == .restricted {
 }
 
 let settings: [String: Any] = [
-  AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-  AVSampleRateKey: 44100,
+  AVFormatIDKey: Int(kAudioFormatLinearPCM),
+  AVSampleRateKey: 16000,
   AVNumberOfChannelsKey: 1,
-  AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+  AVLinearPCMBitDepthKey: 16,
+  AVLinearPCMIsFloatKey: false,
+  AVLinearPCMIsBigEndianKey: false,
 ]
 
 while true {
   autoreleasepool {
-    let url = root.appendingPathComponent("chunk-\(Date().timeIntervalSince1970).m4a")
+    let url = root.appendingPathComponent("chunk-\(Date().timeIntervalSince1970).wav")
     do {
       let recorder = try AVAudioRecorder(url: url, settings: settings)
       recorder.isMeteringEnabled = true

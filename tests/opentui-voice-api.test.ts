@@ -54,6 +54,15 @@ describe("opentui voice api", () => {
     expect(text).toBe("本地转录 /tmp/test.wav");
   });
 
+  it("keeps the useful tail of local transcription errors", async () => {
+    await expect(transcribeVoiceFile({
+      filePath: "/tmp/test.wav",
+      config: {
+        localCommand: "printf 'startup log\\nreal failure at the end\\n' >&2; exit 3",
+      },
+    })).rejects.toThrow("real failure at the end");
+  });
+
   it("rejects missing api keys before network calls", async () => {
     await expect(transcribeVoiceFile({
       filePath: "/tmp/test.wav",

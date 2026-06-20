@@ -31,7 +31,11 @@ describe("opentui voice runtime", () => {
     expect(command?.executable).toBe("/usr/bin/swift");
     expect(command?.args[0]?.endsWith(".swift")).toBe(true);
     expect(command?.args[0] && existsSync(command.args[0])).toBe(true);
-    expect(readFileSync(command!.args[0]!, "utf8")).toContain("AVAudioRecorder");
+    const script = readFileSync(command!.args[0]!, "utf8");
+    expect(script).toContain("AVAudioRecorder");
+    expect(script).toContain("kAudioFormatLinearPCM");
+    expect(script).toContain(".wav");
+    expect(script).not.toContain("kAudioFormatMPEG4AAC");
   });
 
   it("does not pretend to have a built-in recorder on non-macOS platforms", () => {

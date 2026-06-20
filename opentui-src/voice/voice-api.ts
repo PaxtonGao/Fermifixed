@@ -44,7 +44,8 @@ async function transcribeWithLocalCommand(filePath: string, commandTemplate: str
     child.on("error", reject);
     child.on("close", resolve);
   });
-  if (code) throw new Error(`Local transcription failed: ${code}${stderr ? ` ${stderr.trim().slice(0, 160)}` : ""}`);
+  const errorTail = Array.from(stderr.trim()).slice(-400).join("");
+  if (code) throw new Error(`Local transcription failed: ${code}${errorTail ? ` ${errorTail}` : ""}`);
   return stdout.trim();
 }
 
