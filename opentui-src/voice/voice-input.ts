@@ -11,9 +11,23 @@ const UNDO_PHRASES = new Set(["撤回刚才语音", "恢复刚才那次修改", 
 const CLEAR_PHRASES = new Set(["清空这段", "取消这段"]);
 const DRAFT_REFS = ["刚才", "上面", "前面", "这段", "上一句", "我刚刚说的", "输入框里", "草稿里", "不对", "不是"];
 const EDIT_ACTIONS = ["删掉", "去掉", "改成", "替换", "不要", "保留", "重写", "补一句", "挪到前面"];
+const NOISE_TRANSCRIPTS = new Set([
+  "backgroundnoise",
+  "blankaudio",
+  "clicking",
+  "keyboardclicking",
+  "silence",
+  "typing",
+  "windblowing",
+  "windnoise",
+  "敲击声",
+  "键盘声",
+  "鼠标点击声",
+  "风声",
+]);
 
 function normalizeVoiceText(input: string): string {
-  return input.trim().toLowerCase().replace(/[，。！？,.!?\s]+/g, "");
+  return input.trim().toLowerCase().replace(/[()[\]{}"'`，。！？,.!?\s_-]+/g, "");
 }
 
 function isShortControlPhrase(input: string): boolean {
@@ -31,6 +45,10 @@ export function classifyVoiceTranscript(input: string): VoiceCommand {
   if (UNDO_PHRASES.has(normalized)) return "undo";
   if (CLEAR_PHRASES.has(normalized)) return "clear";
   return "dictation";
+}
+
+export function isVoiceNoiseTranscript(input: string): boolean {
+  return isShortControlPhrase(input) && NOISE_TRANSCRIPTS.has(normalizeVoiceText(input));
 }
 
 export function isVoiceDraftEdit(input: string): boolean {

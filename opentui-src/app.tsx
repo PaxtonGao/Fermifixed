@@ -131,7 +131,7 @@ import { OpenTuiScreen } from "./display/layout/open-tui-screen.js";
 import { resolveModelNameColor } from "./display/utils/model.js";
 import { getDeleteToVisualLineStartAction } from "./input/delete-to-visual-line-start.js";
 import { appendPromptHistory, getPromptHistoryNavigationDirection, navigatePromptHistory } from "./input/prompt-history.js";
-import { appendVoiceText, classifyVoiceTranscript, formatVoiceHint, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, type VoiceMutation } from "./voice/voice-input.js";
+import { appendVoiceText, classifyVoiceTranscript, formatVoiceHint, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, isVoiceNoiseTranscript, type VoiceMutation } from "./voice/voice-input.js";
 import { rewriteVoicePrompt, transcribeVoiceFile, type VoiceApiConfig } from "./voice/voice-api.js";
 import { startVoiceRecorder, type VoiceRecorder } from "./voice/voice-runtime.js";
 import type { VoiceSettings } from "../src/persistence.js";
@@ -1997,6 +1997,10 @@ export function OpenTuiApp({
         voiceTranscribingRef.current = false;
         if (!text.trim()) {
           showVoiceStatus("未听清，继续说或按 Enter 确认");
+          return;
+        }
+        if (isVoiceNoiseTranscript(text)) {
+          showVoiceStatus("忽略噪声，继续说或按 Enter 确认");
           return;
         }
         showVoiceStatus(`听到: ${text.trim().slice(0, 60)}`);

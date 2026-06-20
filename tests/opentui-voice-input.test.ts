@@ -7,6 +7,7 @@ import {
   getVoiceUndoText,
   isVoiceDraftEdit,
   isVoiceHotkey,
+  isVoiceNoiseTranscript,
 } from "../opentui-src/voice/voice-input.js";
 
 describe("opentui voice input", () => {
@@ -55,5 +56,18 @@ describe("opentui voice input", () => {
   it("recognizes the default Ctrl+R voice hotkey", () => {
     expect(isVoiceHotkey({ name: "r", ctrl: true }, undefined)).toBe(true);
     expect(isVoiceHotkey({ name: "r" }, undefined)).toBe(false);
+  });
+
+  it("ignores short transcripts that are only noise markers", () => {
+    expect(isVoiceNoiseTranscript("clicking")).toBe(true);
+    expect(isVoiceNoiseTranscript("[keyboard clicking]")).toBe(true);
+    expect(isVoiceNoiseTranscript("wind noise")).toBe(true);
+    expect(isVoiceNoiseTranscript("[BLANK_AUDIO]")).toBe(true);
+    expect(isVoiceNoiseTranscript("键盘声")).toBe(true);
+  });
+
+  it("keeps normal requests that mention noise words", () => {
+    expect(isVoiceNoiseTranscript("帮我修 clicking 这个测试")).toBe(false);
+    expect(isVoiceNoiseTranscript("分析 wind noise 变量")).toBe(false);
   });
 });
