@@ -10,6 +10,7 @@ import {
   isVoiceHotkey,
   isVoiceNoiseTranscript,
   resolveVoiceConfirmAction,
+  resolveVoiceFileAction,
 } from "../opentui-src/voice/voice-input.js";
 
 describe("opentui voice input", () => {
@@ -41,8 +42,15 @@ describe("opentui voice input", () => {
 
   it("waits for in-flight transcription before confirming", () => {
     expect(resolveVoiceConfirmAction(false, true)).toBe("rewrite");
+    expect(resolveVoiceConfirmAction(true, true)).toBe("wait");
     expect(resolveVoiceConfirmAction(true, false)).toBe("wait");
     expect(resolveVoiceConfirmAction(false, false)).toBe("empty");
+  });
+
+  it("does not start transcription while rewriting", () => {
+    expect(resolveVoiceFileAction(false, false)).toBe("transcribe");
+    expect(resolveVoiceFileAction(false, true)).toBe("skip");
+    expect(resolveVoiceFileAction(true, false)).toBe("skip");
   });
 
   it("shows recent transcript text in the voice hint without growing unbounded", () => {

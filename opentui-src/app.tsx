@@ -131,7 +131,7 @@ import { OpenTuiScreen } from "./display/layout/open-tui-screen.js";
 import { resolveModelNameColor } from "./display/utils/model.js";
 import { getDeleteToVisualLineStartAction } from "./input/delete-to-visual-line-start.js";
 import { appendPromptHistory, getPromptHistoryNavigationDirection, navigatePromptHistory } from "./input/prompt-history.js";
-import { appendVoiceText, classifyVoiceTranscript, cleanVoiceTranscript, formatVoiceHint, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, isVoiceNoiseTranscript, resolveVoiceConfirmAction, type VoiceMutation } from "./voice/voice-input.js";
+import { appendVoiceText, classifyVoiceTranscript, cleanVoiceTranscript, formatVoiceHint, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, isVoiceNoiseTranscript, resolveVoiceConfirmAction, resolveVoiceFileAction, type VoiceMutation } from "./voice/voice-input.js";
 import { rewriteVoicePrompt, transcribeVoiceFile, type VoiceApiConfig } from "./voice/voice-api.js";
 import { startVoiceRecorder, type VoiceRecorder } from "./voice/voice-runtime.js";
 import type { VoiceSettings } from "../src/persistence.js";
@@ -633,6 +633,7 @@ export function OpenTuiApp({
   const voiceSegmentsRef = useRef<string[]>([]);
   const voiceTranscribingRef = useRef(false);
   const voiceConfirmAfterTranscriptionRef = useRef(false);
+  const voiceRewritingRef = useRef(false);
   const lastVoiceMutationRef = useRef<VoiceMutation | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const suppressComposerSyncRef = useRef(false);
@@ -1990,7 +1991,7 @@ export function OpenTuiApp({
     if (!transcript) return;
     if (transcript.startsWith("file:")) {
       const filePath = transcript.slice("file:".length).trim();
-      if (voiceTranscribingRef.current) {
+      if (resolveVoiceFileAction(voiceTranscribingRef.current, voiceRewritingRef.current) === "skip") {
         unlink(filePath, () => {});
         return;
       }
@@ -2079,6 +2080,8 @@ export function OpenTuiApp({
         return;
       }
       const currentDraft = getSerializedComposerInput();
+      replaceVoiceSegments([]);
+      voiceRewritingRef.current = true;
       showVoiceStatus("正在改写语音输入...");
       void rewriteVoicePrompt({
         transcript: raw,
@@ -2099,10 +2102,11 @@ export function OpenTuiApp({
           ? rewritten
           : appendVoiceText(currentDraft, rewritten, voice?.append_separator ?? "\n");
         applyVoiceComposerText(nextText);
-        replaceVoiceSegments([]);
         showVoiceStatus("已写入输入框");
       }).catch((err) => {
         showVoiceStatus(`改写失败: ${err instanceof Error ? err.message : String(err)}`);
+      }).finally(() => {
+        voiceRewritingRef.current = false;
       });
       return;
     }
@@ -2124,6 +2128,7 @@ export function OpenTuiApp({
       voiceRecorderRef.current = null;
       voiceTranscribingRef.current = false;
       voiceConfirmAfterTranscriptionRef.current = false;
+      voiceRewritingRef.current = false;
       setVoiceEnabled(false);
       replaceVoiceSegments([]);
       setVoiceStatus(null);

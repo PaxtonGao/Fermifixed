@@ -1,5 +1,6 @@
 export type VoiceCommand = "confirm" | "direct" | "undo" | "clear" | "dictation";
 export type VoiceConfirmAction = "rewrite" | "wait" | "empty";
+export type VoiceFileAction = "transcribe" | "skip";
 
 export interface VoiceMutation {
   beforeText: string;
@@ -73,8 +74,12 @@ export function appendVoiceText(current: string, incoming: string, separator = "
 }
 
 export function resolveVoiceConfirmAction(transcribing: boolean, hasSegments: boolean): VoiceConfirmAction {
-  if (hasSegments) return "rewrite";
-  return transcribing ? "wait" : "empty";
+  if (transcribing) return "wait";
+  return hasSegments ? "rewrite" : "empty";
+}
+
+export function resolveVoiceFileAction(transcribing: boolean, rewriting: boolean): VoiceFileAction {
+  return transcribing || rewriting ? "skip" : "transcribe";
 }
 
 function clipTail(input: string, maxChars: number): string {
