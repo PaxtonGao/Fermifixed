@@ -232,6 +232,9 @@ function resolveVoiceApiConfig(
   kind: "stt" | "rewrite",
 ): VoiceApiConfig | null {
   const entry = kind === "stt" ? settings?.stt : settings?.rewrite;
+  if (kind === "stt" && entry?.local_command?.trim()) {
+    return { localCommand: entry.local_command };
+  }
   const defaultApiKeyEnv = kind === "stt" ? DEFAULT_VOICE_STT_API_KEY_ENV : DEFAULT_VOICE_REWRITE_API_KEY_ENV;
   const apiKeyEnv = entry?.api_key_env ?? defaultApiKeyEnv;
   const apiKey = entry?.api_key ?? process.env[apiKeyEnv];

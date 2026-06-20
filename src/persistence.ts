@@ -668,6 +668,7 @@ export interface VoiceApiSettings {
   model?: string;
   api_key_env?: string;
   api_key?: string;
+  local_command?: string;
 }
 
 /**

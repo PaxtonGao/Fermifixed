@@ -45,6 +45,15 @@ describe("opentui voice api", () => {
     expect(JSON.stringify(bodies[0])).toContain("package.json");
   });
 
+  it("can transcribe with a local command", async () => {
+    const text = await transcribeVoiceFile({
+      filePath: "/tmp/test.wav",
+      config: { localCommand: "printf '本地转录 {file}\\n'" },
+    });
+
+    expect(text).toBe("本地转录 /tmp/test.wav");
+  });
+
   it("rejects missing api keys before network calls", async () => {
     await expect(transcribeVoiceFile({
       filePath: "/tmp/test.wav",

@@ -1,9 +1,11 @@
+import { spawn } from "node:child_process";
 import { basename } from "node:path";
 
 export interface VoiceApiConfig {
-  baseUrl: string;
-  model: string;
-  apiKey: string;
+  baseUrl?: string;
+  model?: string;
+  apiKey?: string;
+  localCommand?: string;
 }
 
 export interface VoiceRewriteContext {
@@ -16,12 +18,34 @@ export type VoiceRewriteMode = "append" | "edit";
 
 type FetchLike = (url: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
-function requireApiKey(apiKey: string): void {
-  if (!apiKey.trim()) throw new Error("Voice API key is missing");
+function requireApiKey(apiKey: string | undefined): string {
+  if (!apiKey?.trim()) throw new Error("Voice API key is missing");
+  return apiKey;
 }
 
 function endpoint(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, "")}${path}`;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+async function transcribeWithLocalCommand(filePath: string, commandTemplate: string): Promise<string> {
+  const command = commandTemplate.includes("{file}")
+    ? commandTemplate.replaceAll("{file}", shellQuote(filePath))
+    : `${commandTemplate} ${shellQuote(filePath)}`;
+  const child = spawn(command, { shell: true, stdio: ["ignore", "pipe", "pipe"] });
+  let stdout = "";
+  let stderr = "";
+  child.stdout?.on("data", (chunk: Buffer | string) => { stdout += chunk.toString(); });
+  child.stderr?.on("data", (chunk: Buffer | string) => { stderr += chunk.toString(); });
+  const code = await new Promise<number | null>((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", resolve);
+  });
+  if (code) throw new Error(`Local transcription failed: ${code}${stderr ? ` ${stderr.trim().slice(0, 160)}` : ""}`);
+  return stdout.trim();
 }
 
 export async function transcribeVoiceFile(opts: {
@@ -29,16 +53,19 @@ export async function transcribeVoiceFile(opts: {
   config: VoiceApiConfig;
   fetchFn?: FetchLike;
 }): Promise<string> {
-  requireApiKey(opts.config.apiKey);
+  if (opts.config.localCommand?.trim()) {
+    return transcribeWithLocalCommand(opts.filePath, opts.config.localCommand);
+  }
+  const apiKey = requireApiKey(opts.config.apiKey);
   const fetchFn = opts.fetchFn ?? fetch;
   const file = Bun.file(opts.filePath);
   const form = new FormData();
-  form.set("model", opts.config.model);
+  form.set("model", opts.config.model ?? "whisper-1");
   form.set("file", file, basename(opts.filePath));
 
-  const response = await fetchFn(endpoint(opts.config.baseUrl, "/audio/transcriptions"), {
+  const response = await fetchFn(endpoint(opts.config.baseUrl ?? "https://api.openai.com/v1", "/audio/transcriptions"), {
     method: "POST",
-    headers: { Authorization: `Bearer ${opts.config.apiKey}` },
+    headers: { Authorization: `Bearer ${apiKey}` },
     body: form,
   });
   if (!response.ok) throw new Error(`Voice transcription failed: ${response.status}`);
@@ -54,7 +81,7 @@ export async function rewriteVoicePrompt(opts: {
   config: VoiceApiConfig;
   fetchFn?: FetchLike;
 }): Promise<string> {
-  requireApiKey(opts.config.apiKey);
+  const apiKey = requireApiKey(opts.config.apiKey);
   const fetchFn = opts.fetchFn ?? fetch;
   const system = opts.mode === "edit"
     ? "You rewrite the complete composer draft from the user's spoken edit instruction. Output only the full replacement draft. Preserve facts. Do not explain."
@@ -65,10 +92,10 @@ export async function rewriteVoicePrompt(opts: {
     context: opts.context,
   });
 
-  const response = await fetchFn(endpoint(opts.config.baseUrl, "/chat/completions"), {
+  const response = await fetchFn(endpoint(opts.config.baseUrl ?? "https://api.deepseek.com", "/chat/completions"), {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${opts.config.apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
