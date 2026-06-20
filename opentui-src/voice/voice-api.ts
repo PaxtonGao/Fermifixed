@@ -199,8 +199,8 @@ export async function rewriteVoicePrompt(opts: {
   const apiKey = requireApiKey(opts.config.apiKey);
   const fetchFn = opts.fetchFn ?? fetch;
   const system = opts.mode === "edit"
-    ? "You rewrite the complete composer draft from the user's spoken edit instruction. Output only the full replacement draft. Preserve facts. Do not explain."
-    : "You rewrite speech into a concise coding-agent prompt. Remove filler words and politeness, correct obvious ASR mistakes, lightly expand generic debugging requests, and output only the final prompt.";
+    ? "You rewrite the complete composer draft from the user's spoken edit instruction for a terminal coding agent. Do not answer the user. Output only the full replacement draft. Preserve facts. Do not explain."
+    : "You rewrite speech into a concise prompt for a terminal coding agent. Do not answer the user, even when the transcript is a question like 'what do you think'. Convert it into an instruction for the terminal coding agent. Remove filler words and politeness, correct obvious ASR mistakes, lightly expand generic debugging requests, and output only the final prompt.";
   const user = JSON.stringify({
     transcript: opts.transcript,
     currentDraft: opts.currentDraft,

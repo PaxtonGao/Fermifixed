@@ -48,6 +48,27 @@ describe("opentui voice api", () => {
     expect(JSON.stringify(bodies[0])).toContain("package.json");
   });
 
+  it("tells the rewrite model not to answer spoken questions", async () => {
+    const bodies: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+    const fetchFn = async (_url: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ choices: [{ message: { content: "评估当前方案并给出改进建议" } }] }), { status: 200 });
+    };
+
+    await rewriteVoicePrompt({
+      transcript: "你觉得这个怎么样",
+      currentDraft: "",
+      mode: "append",
+      context: { cwd: "/repo", projectName: "repo", markers: [] },
+      config: { baseUrl: "https://api.deepseek.com", model: "deepseek-chat", apiKey: "secret" },
+      fetchFn,
+    });
+
+    const system = bodies[0]?.messages.find((message) => message.role === "system")?.content ?? "";
+    expect(system).toContain("Do not answer");
+    expect(system).toContain("terminal coding agent");
+  });
+
   it("can transcribe with a local command", async () => {
     const text = await transcribeVoiceFile({
       filePath: "/tmp/test.wav",
