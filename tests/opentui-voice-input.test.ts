@@ -33,13 +33,14 @@ describe("opentui voice input", () => {
   });
 
   it("shows recent transcript text in the voice hint without growing unbounded", () => {
-    expect(formatVoiceHint(["第一句", "第二句"], null)).toBe("语音: 第一句 第二句 (2 段)");
+    expect(formatVoiceHint([], null)).toBe("语音转录开启，说“确认”放入输入框");
+    expect(formatVoiceHint(["第一句", "第二句"], null)).toBe("语音: 第一句 第二句 (2 段)，说“确认”放入输入框");
 
     const longText = "帮我看看前端为什么打不开，先看依赖安装状态，再看启动日志，然后找出根因并给出修复方案";
     const hint = formatVoiceHint([longText], null, 24);
     expect(hint.startsWith("语音: ...")).toBe(true);
     expect(hint).toContain("1 段");
-    expect(hint.length).toBeLessThanOrEqual(40);
+    expect(hint).toContain("说“确认”放入输入框");
   });
 
   it("only undoes when the composer still matches the last voice output", () => {

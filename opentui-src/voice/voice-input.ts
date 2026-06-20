@@ -52,12 +52,14 @@ function clipTail(input: string, maxChars: number): string {
   return `...${chars.slice(-maxChars).join("")}`;
 }
 
-export function formatVoiceHint(segments: readonly string[], status: string | null, maxPreviewChars = 96): string {
+const VOICE_CONFIRM_HINT = "说“确认”放入输入框";
+
+export function formatVoiceHint(segments: readonly string[], status: string | null, maxPreviewChars = 64): string {
   const cleanStatus = status?.trim();
   if (cleanStatus) return cleanStatus;
   const preview = segments.slice(-2).join(" ").replace(/\s+/g, " ").trim();
-  if (!preview) return "语音转录开启";
-  return `语音: ${clipTail(preview, maxPreviewChars)} (${segments.length} 段)`;
+  if (!preview) return `语音转录开启，${VOICE_CONFIRM_HINT}`;
+  return `语音: ${clipTail(preview, maxPreviewChars)} (${segments.length} 段)，${VOICE_CONFIRM_HINT}`;
 }
 
 export function getVoiceUndoText(current: string, mutation: VoiceMutation | null): string | null {
