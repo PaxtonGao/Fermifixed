@@ -14,5 +14,6 @@ describe("fermi-update-local", () => {
     expect(text).toContain("git pull --ff-only");
     expect(text).toContain("bun run build");
     expect(text).toContain('cp "$repo/build/fermi" "$bin"');
+    expect(text).toContain('codesign --force --sign - "$bin"');
   });
 });

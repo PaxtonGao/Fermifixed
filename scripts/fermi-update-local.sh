@@ -15,5 +15,8 @@ if [ -f "$bin" ]; then
 fi
 cp "$repo/build/fermi" "$bin"
 chmod +x "$bin"
+if [ "$(uname -s)" = "Darwin" ]; then
+  codesign --force --sign - "$bin"
+fi
 
 echo "Updated $bin from $repo"
