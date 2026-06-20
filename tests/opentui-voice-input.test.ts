@@ -5,6 +5,7 @@ import {
   classifyVoiceTranscript,
   getVoiceUndoText,
   isVoiceDraftEdit,
+  isVoiceHotkey,
 } from "../opentui-src/voice/voice-input.js";
 
 describe("opentui voice input", () => {
@@ -35,5 +36,10 @@ describe("opentui voice input", () => {
 
     expect(getVoiceUndoText("old\nvoice", mutation)).toBe("old");
     expect(getVoiceUndoText("old\nvoice plus manual edit", mutation)).toBeNull();
+  });
+
+  it("recognizes the default Ctrl+R voice hotkey", () => {
+    expect(isVoiceHotkey({ name: "r", ctrl: true }, undefined)).toBe(true);
+    expect(isVoiceHotkey({ name: "r" }, undefined)).toBe(false);
   });
 });

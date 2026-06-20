@@ -131,7 +131,7 @@ import { OpenTuiScreen } from "./display/layout/open-tui-screen.js";
 import { resolveModelNameColor } from "./display/utils/model.js";
 import { getDeleteToVisualLineStartAction } from "./input/delete-to-visual-line-start.js";
 import { appendPromptHistory, getPromptHistoryNavigationDirection, navigatePromptHistory } from "./input/prompt-history.js";
-import { appendVoiceText, classifyVoiceTranscript, getVoiceUndoText, isVoiceDraftEdit, type VoiceMutation } from "./voice/voice-input.js";
+import { appendVoiceText, classifyVoiceTranscript, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, type VoiceMutation } from "./voice/voice-input.js";
 import { rewriteVoicePrompt, transcribeVoiceFile, type VoiceApiConfig } from "./voice/voice-api.js";
 import { startVoiceRecorder, type VoiceRecorder } from "./voice/voice-runtime.js";
 import type { VoiceSettings } from "../src/persistence.js";
@@ -239,20 +239,6 @@ function resolveVoiceApiConfig(
     model: entry?.model ?? defaultModel,
     apiKey,
   };
-}
-
-function isVoiceHotkey(
-  event: { name: string; ctrl?: boolean; meta?: boolean; option?: boolean; shift?: boolean; super?: boolean },
-  hotkey: string | undefined,
-): boolean {
-  const parts = (hotkey ?? "ctrl+r").toLowerCase().replace(/\s+/g, "").split("+").filter(Boolean);
-  const key = parts.pop();
-  if (!key || event.name !== key) return false;
-  const modifiers = new Set(parts);
-  return Boolean(event.ctrl) === (modifiers.has("ctrl") || modifiers.has("control"))
-    && Boolean(event.shift) === modifiers.has("shift")
-    && Boolean(event.meta) === (modifiers.has("meta") || modifiers.has("alt") || modifiers.has("option"))
-    && Boolean(event.super) === (modifiers.has("super") || modifiers.has("cmd") || modifiers.has("command"));
 }
 
 async function copyToClipboard(text: string, rendererCopy: (text: string) => boolean): Promise<boolean> {
@@ -2651,6 +2637,13 @@ export function OpenTuiApp({
       return;
     }
 
+    if (isVoiceHotkey(event, voice?.hotkey)) {
+      toggleVoiceMode();
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (helpPanel) {
       if (event.name === "escape" || (event.name === "c" && event.ctrl)) {
         setHelpPanel(false);
@@ -3091,13 +3084,6 @@ export function OpenTuiApp({
         event.stopPropagation();
         return;
       }
-    }
-
-    if (isVoiceHotkey(event, voice?.hotkey)) {
-      toggleVoiceMode();
-      event.preventDefault();
-      event.stopPropagation();
-      return;
     }
 
     if (event.name === "pageup") {

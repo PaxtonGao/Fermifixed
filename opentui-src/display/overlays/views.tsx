@@ -520,6 +520,7 @@ const HELP_SHORTCUTS: Array<{ key: string; action: string }> = [
   { key: "Ctrl+C", action: "Cancel / Exit" },
   { key: "Ctrl+G", action: "Toggle markdown raw view" },
   { key: "Ctrl+Q", action: "Cycle permission mode" },
+  { key: "Ctrl+R", action: "Toggle voice transcription" },
   { key: "Ctrl+V / Ctrl+Y", action: "Paste image (Ctrl+Y for Windows Terminal)" },
   { key: "Ctrl+X", action: "Kill all sub-agents" },
   { key: "Ctrl+K", action: "Kill all background shells" },

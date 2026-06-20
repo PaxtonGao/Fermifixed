@@ -50,3 +50,17 @@ export function getVoiceUndoText(current: string, mutation: VoiceMutation | null
   if (!mutation) return null;
   return current === mutation.afterText ? mutation.beforeText : null;
 }
+
+export function isVoiceHotkey(
+  event: { name: string; ctrl?: boolean; meta?: boolean; option?: boolean; shift?: boolean; super?: boolean },
+  hotkey: string | undefined,
+): boolean {
+  const parts = (hotkey ?? "ctrl+r").toLowerCase().replace(/\s+/g, "").split("+").filter(Boolean);
+  const key = parts.pop();
+  if (!key || event.name !== key) return false;
+  const modifiers = new Set(parts);
+  return Boolean(event.ctrl) === (modifiers.has("ctrl") || modifiers.has("control"))
+    && Boolean(event.shift) === modifiers.has("shift")
+    && Boolean(event.meta) === (modifiers.has("meta") || modifiers.has("alt") || modifiers.has("option"))
+    && Boolean(event.super) === (modifiers.has("super") || modifiers.has("cmd") || modifiers.has("command"));
+}
