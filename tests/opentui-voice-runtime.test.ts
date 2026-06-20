@@ -33,6 +33,7 @@ describe("opentui voice runtime", () => {
     expect(command?.args[0] && existsSync(command.args[0])).toBe(true);
     const script = readFileSync(command!.args[0]!, "utf8");
     expect(script).toContain("AVAudioRecorder");
+    expect(script).toContain("let chunkSeconds = 8.0");
     expect(script).toContain("kAudioFormatLinearPCM");
     expect(script).toContain(".wav");
     expect(script).not.toContain("kAudioFormatMPEG4AAC");

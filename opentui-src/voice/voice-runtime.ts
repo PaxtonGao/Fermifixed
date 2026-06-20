@@ -18,7 +18,7 @@ const MACOS_RECORDER_SWIFT = String.raw`
 import AVFoundation
 import Foundation
 
-let chunkSeconds = 3.0
+let chunkSeconds = 8.0
 let silenceThreshold: Float = -50.0
 let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("fermi-voice-\(UUID().uuidString)")
 try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
