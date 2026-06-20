@@ -1,4 +1,8 @@
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it, expect } from "bun:test";
+import { saveSettings } from "../src/persistence.js";
 import { DEFAULT_THRESHOLDS, computeHysteresisThresholds, validateSummarizeHintLevels } from "../src/settings.js";
 
 describe("settings module", () => {
@@ -72,5 +76,35 @@ describe("computeHysteresisThresholds", () => {
     expect(h.hintResetNone).toBeLessThan(thresholds.context_hint_level1);
     expect(h.hintResetLevel1).toBeGreaterThanOrEqual(thresholds.context_hint_level1);
     expect(h.hintResetLevel1).toBeLessThan(thresholds.context_hint_level2);
+  });
+});
+
+describe("saveSettings", () => {
+  it("preserves voice settings", () => {
+    const file = join(mkdtempSync(join(tmpdir(), "fermi-settings-")), "settings.json");
+
+    saveSettings({
+      voice: {
+        enabled: true,
+        hotkey: "ctrl+r",
+        recorder_command: "printf 'hello\\n'",
+        rewrite: {
+          base_url: "https://api.deepseek.com",
+          model: "deepseek-v4-flash",
+          api_key_env: "FERMI_DEEPSEEK_API_KEY",
+        },
+      },
+    }, file);
+
+    expect(JSON.parse(readFileSync(file, "utf8")).voice).toEqual({
+      enabled: true,
+      hotkey: "ctrl+r",
+      recorder_command: "printf 'hello\\n'",
+      rewrite: {
+        base_url: "https://api.deepseek.com",
+        model: "deepseek-v4-flash",
+        api_key_env: "FERMI_DEEPSEEK_API_KEY",
+      },
+    });
   });
 });

@@ -1622,6 +1622,7 @@ export function saveSettings(settings: FermiSettings, filePath: string): void {
   if (settings.sub_agent_inherit_hooks !== undefined) clean.sub_agent_inherit_hooks = settings.sub_agent_inherit_hooks;
   if (settings.auto_update !== undefined) clean.auto_update = settings.auto_update;
   if (settings.summarize_hint !== undefined) clean.summarize_hint = settings.summarize_hint;
+  if (settings.voice !== undefined) clean.voice = settings.voice;
   writeFileSync(tmp, JSON.stringify(clean, null, 2));
   renameSync(tmp, filePath);
 }
