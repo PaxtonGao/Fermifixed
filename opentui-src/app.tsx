@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/react */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { existsSync } from "node:fs";
+import { existsSync, unlink } from "node:fs";
 
 import { clipboard } from "../src/platform/index.js";
 
@@ -131,7 +131,7 @@ import { OpenTuiScreen } from "./display/layout/open-tui-screen.js";
 import { resolveModelNameColor } from "./display/utils/model.js";
 import { getDeleteToVisualLineStartAction } from "./input/delete-to-visual-line-start.js";
 import { appendPromptHistory, getPromptHistoryNavigationDirection, navigatePromptHistory } from "./input/prompt-history.js";
-import { appendVoiceText, classifyVoiceTranscript, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, type VoiceMutation } from "./voice/voice-input.js";
+import { appendVoiceText, classifyVoiceTranscript, formatVoiceHint, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, type VoiceMutation } from "./voice/voice-input.js";
 import { rewriteVoicePrompt, transcribeVoiceFile, type VoiceApiConfig } from "./voice/voice-api.js";
 import { startVoiceRecorder, type VoiceRecorder } from "./voice/voice-runtime.js";
 import type { VoiceSettings } from "../src/persistence.js";
@@ -165,9 +165,11 @@ export interface OpenTuiAppProps {
 const CTRL_C_EXIT_WINDOW_MS = 2000;
 const DOUBLE_ESC_WINDOW_MS = 500;
 const DEFAULT_VOICE_STT_BASE_URL = "https://api.openai.com/v1";
-const DEFAULT_VOICE_STT_MODEL = "gpt-4o-mini-transcribe";
+const DEFAULT_VOICE_STT_MODEL = "whisper-1";
+const DEFAULT_VOICE_STT_API_KEY_ENV = "OPENAI_API_KEY";
 const DEFAULT_VOICE_REWRITE_BASE_URL = "https://api.deepseek.com";
 const DEFAULT_VOICE_REWRITE_MODEL = "deepseek-chat";
+const DEFAULT_VOICE_REWRITE_API_KEY_ENV = "FERMI_DEEPSEEK_API_KEY";
 const CUSTOM_EMPTY_HINT =
   'Custom answer is empty. Please enter an answer first, or choose "Discuss further" instead.';
 const GOODBYE_MESSAGES = [
@@ -230,7 +232,9 @@ function resolveVoiceApiConfig(
   kind: "stt" | "rewrite",
 ): VoiceApiConfig | null {
   const entry = kind === "stt" ? settings?.stt : settings?.rewrite;
-  const apiKey = entry?.api_key ?? (entry?.api_key_env ? process.env[entry.api_key_env] : undefined);
+  const defaultApiKeyEnv = kind === "stt" ? DEFAULT_VOICE_STT_API_KEY_ENV : DEFAULT_VOICE_REWRITE_API_KEY_ENV;
+  const apiKeyEnv = entry?.api_key_env ?? defaultApiKeyEnv;
+  const apiKey = entry?.api_key ?? process.env[apiKeyEnv];
   const defaultBaseUrl = kind === "stt" ? DEFAULT_VOICE_STT_BASE_URL : DEFAULT_VOICE_REWRITE_BASE_URL;
   const defaultModel = kind === "stt" ? DEFAULT_VOICE_STT_MODEL : DEFAULT_VOICE_REWRITE_MODEL;
   if (!apiKey?.trim()) return null;
@@ -631,9 +635,7 @@ export function OpenTuiApp({
   const pickerNoteInputRef = useRef<InputRenderable | null>(null);
   const [pickerNoteValue, setPickerNoteValue] = useState("");
   const colors = theme.colors;
-  const voiceHint = voiceEnabled
-    ? (voiceStatus ?? (voiceSegments.length > 0 ? `已暂存 ${voiceSegments.length} 段，等待确认` : "语音转录开启"))
-    : null;
+  const voiceHint = voiceEnabled ? formatVoiceHint(voiceSegments, voiceStatus) : null;
   const composerTokenColorsRef = useRef(colors);
   const markdownStyle = theme.markdownStyle;
   if (!composerTokenVisualsRef.current || composerTokenColorsRef.current !== colors) {
@@ -1970,15 +1972,22 @@ export function OpenTuiApp({
     const transcript = rawTranscript.trim();
     if (!transcript) return;
     if (transcript.startsWith("file:")) {
+      const filePath = transcript.slice("file:".length).trim();
       const sttConfig = resolveVoiceApiConfig(voice, "stt");
       if (!sttConfig) {
+        unlink(filePath, () => {});
         showVoiceStatus("缺少 voice.stt API key");
         return;
       }
+      showVoiceStatus("正在转录语音...");
       void transcribeVoiceFile({
-        filePath: transcript.slice("file:".length).trim(),
+        filePath,
         config: sttConfig,
-      }).then(handleVoiceTranscript).catch((err) => {
+      }).then((text) => {
+        unlink(filePath, () => {});
+        handleVoiceTranscript(text);
+      }).catch((err) => {
+        unlink(filePath, () => {});
         showVoiceStatus(`转录失败: ${err instanceof Error ? err.message : String(err)}`);
       });
       return;
@@ -2080,19 +2089,17 @@ export function OpenTuiApp({
       showHint("语音输入未启用");
       return;
     }
-    if (!voice?.recorder_command?.trim()) {
-      showHint("缺少 voice.recorder_command");
-      return;
-    }
     if (!resolveVoiceApiConfig(voice, "rewrite")) {
       showHint("缺少 voice.rewrite API key");
       return;
     }
-    voiceRecorderRef.current = startVoiceRecorder({
-      command: voice.recorder_command,
+    const recorder = startVoiceRecorder({
+      command: voice?.recorder_command,
       onTranscript: handleVoiceTranscript,
       onError: (message) => showVoiceStatus(message, 5000),
     });
+    if (!recorder.started) return;
+    voiceRecorderRef.current = recorder;
     setVoiceEnabled(true);
     replaceVoiceSegments([]);
     showHint("语音转录开启");

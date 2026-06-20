@@ -46,6 +46,20 @@ export function appendVoiceText(current: string, incoming: string, separator = "
   return base ? `${base}${separator}${text}` : text;
 }
 
+function clipTail(input: string, maxChars: number): string {
+  const chars = Array.from(input);
+  if (chars.length <= maxChars) return input;
+  return `...${chars.slice(-maxChars).join("")}`;
+}
+
+export function formatVoiceHint(segments: readonly string[], status: string | null, maxPreviewChars = 96): string {
+  const cleanStatus = status?.trim();
+  if (cleanStatus) return cleanStatus;
+  const preview = segments.slice(-2).join(" ").replace(/\s+/g, " ").trim();
+  if (!preview) return "语音转录开启";
+  return `语音: ${clipTail(preview, maxPreviewChars)} (${segments.length} 段)`;
+}
+
 export function getVoiceUndoText(current: string, mutation: VoiceMutation | null): string | null {
   if (!mutation) return null;
   return current === mutation.afterText ? mutation.beforeText : null;

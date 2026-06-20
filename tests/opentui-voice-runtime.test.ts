@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-import { startVoiceRecorder } from "../opentui-src/voice/voice-runtime.js";
+import { createDefaultVoiceRecorderCommand, startVoiceRecorder } from "../opentui-src/voice/voice-runtime.js";
 
 describe("opentui voice runtime", () => {
   it("streams recorder stdout lines as transcripts", async () => {
@@ -15,5 +18,27 @@ describe("opentui voice runtime", () => {
     recorder.stop();
 
     expect(seen).toEqual(["hello", "确认"]);
+  });
+
+  it("creates a built-in macOS recorder when no recorder command is configured", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "fermi-voice-test-"));
+    const command = createDefaultVoiceRecorderCommand({
+      platform: "darwin",
+      swiftPath: "/usr/bin/swift",
+      tempDir,
+    });
+
+    expect(command?.executable).toBe("/usr/bin/swift");
+    expect(command?.args[0]?.endsWith(".swift")).toBe(true);
+    expect(command?.args[0] && existsSync(command.args[0])).toBe(true);
+    expect(readFileSync(command!.args[0]!, "utf8")).toContain("AVAudioRecorder");
+  });
+
+  it("does not pretend to have a built-in recorder on non-macOS platforms", () => {
+    expect(createDefaultVoiceRecorderCommand({
+      platform: "linux",
+      swiftPath: "/usr/bin/swift",
+      tempDir: tmpdir(),
+    })).toBeNull();
   });
 });

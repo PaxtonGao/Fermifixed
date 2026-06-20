@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import {
   appendVoiceText,
   classifyVoiceTranscript,
+  formatVoiceHint,
   getVoiceUndoText,
   isVoiceDraftEdit,
   isVoiceHotkey,
@@ -29,6 +30,16 @@ describe("opentui voice input", () => {
   it("appends voice text on a new line when composer already has text", () => {
     expect(appendVoiceText("分析启动失败", "查看日志")).toBe("分析启动失败\n查看日志");
     expect(appendVoiceText("", "查看日志")).toBe("查看日志");
+  });
+
+  it("shows recent transcript text in the voice hint without growing unbounded", () => {
+    expect(formatVoiceHint(["第一句", "第二句"], null)).toBe("语音: 第一句 第二句 (2 段)");
+
+    const longText = "帮我看看前端为什么打不开，先看依赖安装状态，再看启动日志，然后找出根因并给出修复方案";
+    const hint = formatVoiceHint([longText], null, 24);
+    expect(hint.startsWith("语音: ...")).toBe(true);
+    expect(hint).toContain("1 段");
+    expect(hint.length).toBeLessThanOrEqual(40);
   });
 
   it("only undoes when the composer still matches the last voice output", () => {
