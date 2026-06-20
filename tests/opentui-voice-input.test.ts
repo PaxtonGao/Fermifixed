@@ -16,6 +16,8 @@ describe("opentui voice input", () => {
     expect(classifyVoiceTranscript("确认")).toBe("confirm");
     expect(classifyVoiceTranscript("确定吧")).toBe("confirm");
     expect(classifyVoiceTranscript("写进去")).toBe("confirm");
+    expect(classifyVoiceTranscript("寫進去")).toBe("confirm");
+    expect(classifyVoiceTranscript("確認")).toBe("confirm");
     expect(classifyVoiceTranscript("ok")).toBe("confirm");
     expect(classifyVoiceTranscript("帮我实现确认按钮")).toBe("dictation");
   });
@@ -62,6 +64,8 @@ describe("opentui voice input", () => {
   it("ignores short transcripts that are only noise markers", () => {
     expect(isVoiceNoiseTranscript("clicking")).toBe(true);
     expect(isVoiceNoiseTranscript("[keyboard clicking]")).toBe(true);
+    expect(isVoiceNoiseTranscript("(keyboard clacking)")).toBe(true);
+    expect(isVoiceNoiseTranscript("(background chatter)")).toBe(true);
     expect(isVoiceNoiseTranscript("wind noise")).toBe(true);
     expect(isVoiceNoiseTranscript("[BLANK_AUDIO]")).toBe(true);
     expect(isVoiceNoiseTranscript("键盘声")).toBe(true);
@@ -76,5 +80,10 @@ describe("opentui voice input", () => {
   it("removes repeated hallucinated prefix glyphs before normal speech", () => {
     expect(cleanVoiceTranscript("ლლლლლლლლ 你好 现在可以听见我说话吗")).toBe("你好 现在可以听见我说话吗");
     expect(cleanVoiceTranscript("你好 ლლლლ")).toBe("你好 ლლლლ");
+  });
+
+  it("removes leading parenthesized noise labels before normal speech", () => {
+    expect(cleanVoiceTranscript("(keyboard clacking) 你好")).toBe("你好");
+    expect(cleanVoiceTranscript("(keyboard clacking) (wind blowing) 继续看日志")).toBe("继续看日志");
   });
 });

@@ -5,7 +5,7 @@ export interface VoiceMutation {
   afterText: string;
 }
 
-const CONFIRM_PHRASES = new Set(["确认", "确认吧", "确定", "确定吧", "转录吧", "写进去", "放进去", "提交语音", "ok", "okay", "就这样"]);
+const CONFIRM_PHRASES = new Set(["确认", "确认吧", "確認", "確認吧", "确定", "确定吧", "轉錄吧", "写进去", "寫進去", "放进去", "放進去", "提交语音", "提交語音", "ok", "okay", "就这样"]);
 const DIRECT_PHRASES = new Set(["原文输入", "直接输入", "不用改写", "照原样写进去"]);
 const UNDO_PHRASES = new Set(["撤回刚才语音", "恢复刚才那次修改", "取消刚才输入"]);
 const CLEAR_PHRASES = new Set(["清空这段", "取消这段"]);
@@ -26,6 +26,7 @@ const NOISE_TRANSCRIPTS = new Set([
   "风声",
 ]);
 const HALLUCINATED_PREFIX_RE = /^\s*ლ{3,}\s*/;
+const PARENTHESIZED_NOISE_PREFIX_RE = /^\s*(?:\([a-z][a-z\s_-]{0,40}\)\s*)+/i;
 
 function normalizeVoiceText(input: string): string {
   return input.trim().toLowerCase().replace(/[()[\]{}"'`，。！？,.!?\s_-]+/g, "");
@@ -49,11 +50,12 @@ export function classifyVoiceTranscript(input: string): VoiceCommand {
 }
 
 export function isVoiceNoiseTranscript(input: string): boolean {
-  return isShortControlPhrase(input) && (NOISE_TRANSCRIPTS.has(normalizeVoiceText(input)) || HALLUCINATED_PREFIX_RE.test(input.trim()));
+  const cleanText = cleanVoiceTranscript(input);
+  return !cleanText || (isShortControlPhrase(cleanText) && NOISE_TRANSCRIPTS.has(normalizeVoiceText(cleanText)));
 }
 
 export function cleanVoiceTranscript(input: string): string {
-  return input.replace(HALLUCINATED_PREFIX_RE, "").trim();
+  return input.replace(HALLUCINATED_PREFIX_RE, "").replace(PARENTHESIZED_NOISE_PREFIX_RE, "").trim();
 }
 
 export function isVoiceDraftEdit(input: string): boolean {
