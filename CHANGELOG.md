@@ -9,6 +9,14 @@ Release notes. A missing or empty section fails CI.
 
 ## Unreleased
 
+## v0.4.1-paxton.1
+
+- Synced the fork with upstream Fermi v0.4.1, including agent modes, `/goal`, the pure-TypeScript Composer, prompt/tool documentation updates, and model guidance tiers.
+- Added `/project` for creating and switching Projects, with a dynamic default path and initial Skill selection.
+- Added `/proskills` for exact per-Project Skill profiles while keeping `/skills` global.
+- Preserved the voice input and rewrite flow, DashScope Fun-ASR support, macOS local updater/signing, and the fork's existing custom behavior.
+- Fixed slow voice transcription dropping later recorder chunks; queued chunks now transcribe in order and pending Enter confirmation resolves after the queue drains.
+
 ## v0.4.1
 
 - Fixed: agents no longer try to read the plan/todo file before it exists. The prompts now state explicitly that `plan.md` is agent-created (nothing generates it automatically), auto mode's resume ritual says to read only the files that actually exist, and the auto/scale compact note tells the summarizer not to direct the next instance at files that were never created.
