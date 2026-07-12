@@ -259,6 +259,17 @@ describe("checkForUpdates", () => {
     rmSync(tempHome, { recursive: true, force: true });
   });
 
+  it("checks releases from the fork", () => {
+    globalThis.fetch = mock(async () => ({ ok: false, status: 404 })) as unknown as typeof fetch;
+
+    checkForUpdates("0.4.1-paxton.1", tempFermiHome);
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "https://api.github.com/repos/PaxtonGao/Fermifixed/releases/latest",
+      expect.anything(),
+    );
+  });
+
   it("ignores the on-disk cache and always starts a fresh background check", () => {
     // The cache short-circuit was removed on purpose: a stale cache must not
     // produce a synchronous "available"/"idle" verdict. The check always

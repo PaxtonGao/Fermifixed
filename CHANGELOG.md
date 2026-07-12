@@ -9,6 +9,11 @@ Release notes. A missing or empty section fails CI.
 
 ## Unreleased
 
+## v0.4.2-paxton.1
+
+- Fixed the self-updater to check `PaxtonGao/Fermifixed` releases instead of replacing the fork with upstream `FelixRuiGao/Fermi` builds.
+- Restored the fork build after a previously staged upstream v0.4.1 update removed the custom ASCII logo, Project Skill Profiles, and voice input features.
+
 ## v0.4.1-paxton.1
 
 - Synced the fork with upstream Fermi v0.4.1, including agent modes, `/goal`, the pure-TypeScript Composer, prompt/tool documentation updates, and model guidance tiers.

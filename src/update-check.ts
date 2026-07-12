@@ -39,7 +39,7 @@ import { binaryAssetForPlatform } from "./platform/binary-asset/index.js";
 import { currentPlatform, type SupportedPlatform } from "./platform/detect.js";
 import { getFermiHomeDir } from "./home-path.js";
 
-const GITHUB_REPO = "FelixRuiGao/Fermi";
+const GITHUB_REPO = "PaxtonGao/Fermifixed";
 const CACHE_FILE = ".update-check.json";
 // No longer throttled — every launch checks for updates in the background.
 
