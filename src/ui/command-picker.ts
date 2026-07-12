@@ -249,6 +249,7 @@ export function acceptCommandPickerSelection(
       kind: "custom_input",
       picker: {
         ...picker,
+        note: option.inputDefault ?? "",
         customInputMode: true,
         customInputLabel: option.inputLabel,
         customInputPlaceholder: option.inputPlaceholder,

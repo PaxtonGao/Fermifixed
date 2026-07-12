@@ -209,6 +209,8 @@ export interface CommandOption {
   inputLabel?: string;
   /** Placeholder inside the inline text input (default: "Type your instructions"). */
   inputPlaceholder?: string;
+  /** Initial editable value for a custom input. */
+  inputDefault?: string;
 }
 
 /** Context available when building dynamic picker options for a slash command. */
@@ -360,6 +362,7 @@ function projectOptions(ctx: CommandOptionsContext): CommandOption[] {
       customInput: true,
       inputLabel: "New Project path:",
       inputPlaceholder: "/full/path/to/new-project",
+      inputDefault: current ? join(dirname(current), "new-project") : undefined,
     },
     ...recent.map((project) => ({
       label: project.originalPath === current

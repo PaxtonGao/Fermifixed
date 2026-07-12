@@ -36,6 +36,7 @@ describe("command picker", () => {
         customInput: true,
         inputLabel: "Level 1 trigger %:",
         inputPlaceholder: "integer 1-74",
+        inputDefault: "50",
       },
     ]);
 
@@ -48,6 +49,7 @@ describe("command picker", () => {
     expect(entered.picker.customInputMode).toBe(true);
     expect(entered.picker.customInputLabel).toBe("Level 1 trigger %:");
     expect(entered.picker.customInputPlaceholder).toBe("integer 1-74");
+    expect(entered.picker.note).toBe("50");
 
     // Accepting again while IN the mode must submit (with the typed note),
     // not re-enter the mode and clear the field.

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, expect, it, mock } from "bun:test";
 
 import { buildDefaultRegistry, type CommandContext } from "../src/commands.js";
@@ -38,8 +38,10 @@ describe("/project command", () => {
         resetUiState: mock(),
         commandRegistry: registry,
         isProcessing: () => false,
-        promptCommandPicker: mock(async (options: Array<{ label: string }>) => {
+        promptCommandPicker: mock(async (options: Array<{ label: string; value: string; inputDefault?: string }>) => {
           expect(options.some((option) => option.label === `${currentRoot} (current)`)).toBe(true);
+          expect(options.find((option) => option.value === "create")?.inputDefault)
+            .toBe(join(dirname(currentRoot), "new-project"));
           return { value: `recent:${targetRoot}` };
         }),
         restartRuntimeForProject,

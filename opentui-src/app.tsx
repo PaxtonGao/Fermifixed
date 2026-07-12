@@ -2464,7 +2464,7 @@ export function OpenTuiApp({
     }
 
     if (result.kind === "custom_input") {
-      setPickerNoteValue("");
+      setPickerNoteValue(result.picker.note);
       setCommandPicker(result.picker);
       return;
     }
@@ -2495,7 +2495,7 @@ export function OpenTuiApp({
       return;
     }
     if (result.kind === "custom_input") {
-      setPickerNoteValue("");
+      setPickerNoteValue(result.picker.note);
       setCommandPicker(result.picker);
       return;
     }
