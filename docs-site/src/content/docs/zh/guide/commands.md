@@ -20,6 +20,7 @@ title: "斜杠命令"
 | `/review` | | 评审代码变更（base branch / uncommitted / commit / custom） |
 | `/session` | `/resume` | 恢复之前的会话 |
 | `/new` | | 开始新会话 |
+| `/project` | | 打开或创建基于目录的项目 |
 | `/fork` | | 将当前会话 fork 到新分支 |
 | `/rename` | | 重命名当前会话 |
 | `/shells` | | 查看并停止后台 shell |
@@ -27,7 +28,8 @@ title: "斜杠命令"
 | `/stat` | | 显示历史累计 token 统计 |
 | `/autoupdate` | | 切换后台更新检查 |
 | `/autocopy` | | 切换选中即复制（自动复制选区文本） |
-| `/skills` | | 启用/禁用技能（复选框选择器） |
+| `/skills` | | 编辑全局技能默认值（复选框选择器） |
+| `/proskills` | | 编辑当前项目的 Skill Profile |
 | `/mcp` | | 管理 MCP 服务器并列出工具 |
 | `/agents` | | 切换 agents 面板 |
 | `/todos` | | 切换 todo 面板 |
@@ -166,6 +168,10 @@ compact 后，代理会从新的上下文窗口开始，其中只包含延续摘
 
 开始新会话。当前会话会先自动保存。
 
+### `/project`
+
+打开最近项目、输入一个已有目录，或创建一个空目录项目。切换前会保存当前会话。首次进入没有 Skill Profile 的项目时，先用 Space 勾选技能并用 Enter 确认。创建过程不会运行 `git init`，也不会生成仓库文件。
+
 ### `/fork`
 
 把当前会话 fork 成新分支，也就是复制当前状态，然后你可以朝另一个方向继续。
@@ -178,7 +184,11 @@ compact 后，代理会从新的上下文窗口开始，其中只包含延续摘
 
 ### `/skills`
 
-打开复选框选择器，用于启用或禁用已安装技能。技能从多个根目录载入：全局（`~/.fermi/skills/`）、项目（`<project>/.fermi/skills/`）和每项目存储——在此切换会立即重载。
+打开全局技能默认值的复选框选择器。尚无 Profile 的项目继承这些默认值。
+
+### `/proskills`
+
+显示当前项目的完整 Skill Catalog。确认后会在 Fermi 的项目级系统存储中保存精确 allowlist，并立即重载技能。该 Profile 不受后续全局默认值变化影响。
 
 ### `/mcp`
 

@@ -116,7 +116,7 @@ Anthropic · OpenAI · GitHub Copilot · DeepSeek · Kimi · MiniMax · GLM · Q
 
 ## 主要命令
 
-`/model` 切换模型 · `/key` 管理 API key · `/summarize` 压缩上下文 · `/compact` 全量重置 · `/rewind` 回退 turn + 文件 · `/permission` 安全模式 · `/tier` 子 Agent 模型分级 · `/session` 恢复会话 · `/fork` 分叉会话 · `/skills` 管理技能 · `/mcp` MCP 工具
+`/model` 切换模型 · `/key` 管理 API key · `/summarize` 压缩上下文 · `/compact` 全量重置 · `/rewind` 回退 turn + 文件 · `/permission` 安全模式 · `/tier` 子 Agent 模型分级 · `/session` 恢复会话 · `/project` 打开/创建项目 · `/skills` 全局技能默认值 · `/proskills` 项目技能 · `/mcp` MCP 工具
 
 [完整命令参考 →](https://felixruigao.github.io/Fermi/guide/commands)
 

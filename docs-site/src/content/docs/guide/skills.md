@@ -8,11 +8,14 @@ Skills are reusable prompt expansions that the agent can load on demand. They ex
 
 ### Toggle Skills On/Off
 
-Use the `/skills` command to open a checkbox picker where you can enable or disable installed skills:
+Use `/skills` to edit the global defaults used by Projects without a Skill Profile. Use `/proskills` to edit the exact enabled-Skill list for the current Project:
 
 ```text
 /skills
+/proskills
 ```
+
+Project profiles are stored in Fermi's per-Project system data, not in the repository. Once a profile exists, newly installed Skills stay disabled for that Project until you select them with `/proskills`.
 
 ### Install a Skill
 
@@ -34,7 +37,7 @@ The agent will:
 Skills are loaded into the session at startup. After you install, remove, or edit a skill on disk, the change does **not** take effect until skills are reloaded. There are three ways that happens:
 
 - The agent calls the `reload` tool (it re-reads skills, MCP servers, and the system prompt from disk). The skill-manager does this for you as its final step.
-- You toggle a skill in the `/skills` picker (which reloads).
+- You toggle a skill in the `/skills` or `/proskills` picker (which reloads).
 - You start a new session.
 
 When skills change after a reload, Fermi inserts a short `<system-message>` noting which skills are now available or gone — so the agent (and you) can see the new capability without re-reading the whole prompt.
@@ -123,7 +126,8 @@ The skill disappears after the next reload (the agent's `reload` tool, a `/skill
 |--------|-----|
 | Install from GitHub | Ask the agent: "install skill: name" |
 | Create custom | Write a `SKILL.md` in `~/.fermi/skills/name/` |
-| Enable/disable | `/skills` command |
+| Change global defaults | `/skills` command |
+| Change current Project | `/proskills` command |
 | Remove | Delete the directory, then reload (or start a new session) |
 
 ## The Built-in Skill Manager

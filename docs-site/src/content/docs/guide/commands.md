@@ -20,6 +20,7 @@ Slash commands are typed directly in the input during a session. They control co
 | `/review` | | Review code changes (base branch / uncommitted / commit / custom) |
 | `/session` | `/resume` | Resume a previous session |
 | `/new` | | Start a new session |
+| `/project` | | Open or create a directory-backed Project |
 | `/fork` | | Fork current session into a new branch |
 | `/rename` | | Rename current session |
 | `/shells` | | View and stop background shells |
@@ -27,7 +28,8 @@ Slash commands are typed directly in the input during a session. They control co
 | `/stat` | | Show all-time token statistics |
 | `/autoupdate` | | Toggle background update checks |
 | `/autocopy` | | Toggle copy-on-select (auto-copy a text selection) |
-| `/skills` | | Enable/disable skills (checkbox picker) |
+| `/skills` | | Edit global Skill defaults (checkbox picker) |
+| `/proskills` | | Edit the current Project's Skill Profile |
 | `/mcp` | | Manage MCP servers and list tools |
 | `/agents` | | Toggle the agents panel |
 | `/todos` | | Toggle the todo panel |
@@ -166,6 +168,10 @@ Resume a previous session. Shows a list of saved sessions with timestamps. Selec
 
 Start a new session. The current session is auto-saved first.
 
+### `/project`
+
+Open a recent Project, enter an existing directory, or create an empty directory-backed Project. The current Session is saved before switching. A Project without a Skill Profile asks you to choose Skills first; use Space to toggle and Enter to confirm. Creation does not run `git init` or add repository files.
+
 ### `/fork`
 
 Fork the current session into a new branch — creates a copy of the current state that you can take in a different direction.
@@ -178,7 +184,11 @@ Give the current session a descriptive name for easier identification in the ses
 
 ### `/skills`
 
-Opens a checkbox picker to enable or disable installed skills. Skills are loaded from multiple roots — global (`~/.fermi/skills/`), project (`<project>/.fermi/skills/`), and the per-project store — and a toggle here reloads them immediately.
+Opens a checkbox picker for global Skill defaults. Projects without a Profile inherit these defaults.
+
+### `/proskills`
+
+Opens the complete Skill Catalog for the current Project. Confirming saves an exact allowlist in Fermi's system-managed Project storage and reloads Skills immediately. The Profile is independent of later global changes.
 
 ### `/mcp`
 

@@ -333,7 +333,8 @@ export async function launchTui(): Promise<void> {
         store: runtime.store,
         verbose: runtime.verbose,
         onExit: exit,
-        onNewSession: restartRuntime,
+        onNewSession: () => restartRuntime(),
+        onProjectSwitch: (projectPath: string) => restartRuntime(projectPath),
         themeMode: currentThemeMode,
         themeModePref: currentThemeModePref,
         terminalDefaultFg: currentTerminalFg,
@@ -344,7 +345,7 @@ export async function launchTui(): Promise<void> {
     );
   };
 
-  const restartRuntime = async () => {
+  const restartRuntime = async (projectPath?: string) => {
     if (restartingRuntime) return;
     restartingRuntime = true;
     const previousRuntime = runtime;
@@ -352,12 +353,16 @@ export async function launchTui(): Promise<void> {
 
     try {
       saveRuntimeIfNeeded(previousRuntime);
-      await closeRuntimeForRestart(previousRuntime);
-      saveRuntimeIfNeeded(previousRuntime);
-
-      const nextRuntime = await bootstrapOpenTuiRuntime(args);
+      let nextRuntime;
+      if (projectPath) {
+        nextRuntime = await bootstrapOpenTuiRuntime({ ...args, projectPath });
+      } else {
+        await closeRuntimeForRestart(previousRuntime);
+        nextRuntime = await bootstrapOpenTuiRuntime(args);
+      }
       const nextTheme = await resolveThemeMode(renderer, nextRuntime.themeModePref);
       const nextPalette = await renderer.getPalette({ timeout: 250 }).catch(() => null);
+      if (projectPath) await closeRuntimeForRestart(previousRuntime);
       runtime = nextRuntime;
       currentThemeMode = nextTheme.mode;
       currentThemeModePref = nextTheme.pref;
@@ -383,7 +388,7 @@ export async function launchTui(): Promise<void> {
       const message = formatError(err);
       writeFermiOpenTuiDiag("main.new.failed", { error: message });
       previousRuntime.session.appendErrorMessage?.(
-        `Failed to start a new session: ${message}`,
+        `${projectPath ? "Failed to switch Project" : "Failed to start a new session"}: ${message}`,
         "command",
       );
     } finally {

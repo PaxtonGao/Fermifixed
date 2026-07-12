@@ -10,21 +10,23 @@
  *   }
  */
 
-import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, join, dirname } from "node:path";
+import { accessSync, constants, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, isAbsolute, join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CommandPickerResult } from "./ui/command-picker.js";
-import type { SessionStore, LocalProviderConfig, ModelSelectionState, FermiSettings, ProviderEntry, CustomModelEntry, ModelTierEntry } from "./persistence.js";
+import type { LocalProviderConfig, ModelSelectionState, FermiSettings, ProviderEntry, CustomModelEntry, ModelTierEntry } from "./persistence.js";
 import { fetchModelSpecSuggestion } from "./models-dev-lookup.js";
-import { randomSessionId, saveModelSelectionState, saveGlobalSettingsPatch, loadGlobalSettings } from "./persistence.js";
+import { SessionStore, randomSessionId, saveModelSelectionState, saveGlobalSettingsPatch, saveProjectSettingsPatch, loadGlobalSettings, loadProjectSettings } from "./persistence.js";
 import { validateSummarizeHintLevels } from "./settings.js";
 import { VERSION } from "./version.js";
 import { applySessionRestore, findSessionById } from "./session-resume.js";
 import { setDotenvKey } from "./dotenv.js";
 import { fetchModelsFromServer } from "./model-discovery.js";
 import {
+  getBundledAssetsDir,
   getThinkingLevels,
   getTierEligibleThinkingLevels,
+  resolveAssetPaths,
 } from "./config.js";
 import {
   PROVIDER_PRESETS,
@@ -48,7 +50,7 @@ import {
   type PromptSecretRequest,
   type PromptSelectRequest,
 } from "./provider-credential-flow.js";
-import { resolveSkillContent, type SkillMeta } from "./skills/loader.js";
+import { loadSkillsMulti, resolveSkillContent, type SkillMeta } from "./skills/loader.js";
 import { buildModelPickerTree, buildCredentialEndpointTree, toCommandPickerOptions, type ModelPickerTreeContext } from "./model-picker-tree.js";
 import { describeModel, formatCurrentModelScopedLabel, getCurrentModelDescriptor } from "./model-presentation.js";
 import { hasOAuthTokens, isTokenExpiring, readOAuthAccessToken, clearOAuthTokens, ensureFreshToken } from "./auth/openai-oauth.js";
@@ -106,6 +108,9 @@ export interface CommandContext {
   /** Replace the active UI runtime with a freshly bootstrapped session. */
   restartRuntimeForNewSession?: () => Promise<void>;
 
+  /** Replace the active UI runtime with one rooted at another Project. */
+  restartRuntimeForProject?: (projectPath: string) => Promise<void>;
+
   /** The command registry itself, so /help can enumerate commands. */
   commandRegistry: CommandRegistry;
 
@@ -155,6 +160,11 @@ export interface CommandContext {
     options: CommandOption[],
     config?: { title?: string; allowNote?: boolean },
   ) => Promise<CommandPickerResult | undefined>;
+
+  promptCheckboxPicker?: (
+    options: CommandOption[],
+    title: string,
+  ) => Promise<string[] | undefined>;
 
   /**
    * Show the inline OAuth login overlay for the given provider and return
@@ -328,6 +338,174 @@ async function cmdNew(ctx: CommandContext, _args: string): Promise<void> {
   // with correct paths. Equivalent to constructing a fresh Session.
   await ctx.session.resetForNewSession(ctx.store);
   ctx.resetUiState();
+}
+
+function projectOptions(ctx: CommandOptionsContext): CommandOption[] {
+  const current = ctx.store?.projectPath;
+  const recent = ctx.store?.listProjects() ?? [];
+  if (current && !recent.some((project) => project.originalPath === current)) {
+    recent.unshift({ slug: "", originalPath: current, createdAt: "", lastActiveAt: "" });
+  }
+  return [
+    {
+      label: "Open existing directory",
+      value: "open",
+      customInput: true,
+      inputLabel: "Project path:",
+      inputPlaceholder: "/full/path/to/project",
+    },
+    {
+      label: "Create Project",
+      value: "create",
+      customInput: true,
+      inputLabel: "New Project path:",
+      inputPlaceholder: "/full/path/to/new-project",
+    },
+    ...recent.map((project) => ({
+      label: project.originalPath === current
+        ? `${project.originalPath} (current)`
+        : project.originalPath,
+      value: `recent:${project.originalPath}`,
+      detail: project.lastActiveAt,
+    })),
+  ];
+}
+
+function projectSwitchBlocker(ctx: CommandContext): string | null {
+  if (ctx.isProcessing?.()) return "Wait until the current Agent finishes before switching Projects.";
+  if (ctx.session?.hasRunningChildAgents?.()) return "Stop running or blocked sub-Agents before switching Projects.";
+  const runningShell = ctx.session?.getBackgroundShellSnapshots?.()
+    .some((shell: { status: string }) => shell.status === "running");
+  if (runningShell) return "Stop background shells before switching Projects.";
+  return null;
+}
+
+async function selectProjectSkills(
+  ctx: CommandContext,
+  projectPath: string,
+): Promise<string[] | undefined> {
+  const projectStore = new SessionStore({
+    baseDir: ctx.fermiHomeDir,
+    projectPath,
+  });
+  if (!ctx.promptCheckboxPicker) {
+    ctx.showMessage("Skill selection is not available in this UI.");
+    return undefined;
+  }
+
+  const paths = resolveAssetPaths({ homeDir: ctx.fermiHomeDir, projectPath });
+  const catalog = loadSkillsMulti([
+    join(getBundledAssetsDir(), "skills"),
+    ...paths.skillRoots,
+  ]);
+  const localSkills = loadSkillsMulti([
+    join(projectStore.projectDir, ".fermi", "skills"),
+    join(projectPath, ".fermi", "skills"),
+  ]);
+
+  const globallyDisabled = new Set(loadGlobalSettings(ctx.fermiHomeDir).disabled_skills ?? []);
+  return await ctx.promptCheckboxPicker(
+    [...catalog.values()].map((skill) => ({
+      label: `${skill.name} — ${skill.description}`,
+      value: skill.name,
+      checked: !globallyDisabled.has(skill.name) || localSkills.has(skill.name),
+    })),
+    "Project Skills",
+  );
+}
+
+async function ensureProjectSkillProfile(
+  ctx: CommandContext,
+  projectPath: string,
+): Promise<boolean> {
+  const projectStore = new SessionStore({ baseDir: ctx.fermiHomeDir, projectPath });
+  if (loadProjectSettings(projectStore.projectDir).enabled_skills !== undefined) return true;
+  const selected = await selectProjectSkills(ctx, projectPath);
+  if (!selected) return false;
+  saveProjectSettingsPatch({ enabled_skills: selected }, projectStore.projectDir);
+  return true;
+}
+
+async function cmdProject(ctx: CommandContext): Promise<void> {
+  if (!ctx.store || !ctx.promptCommandPicker || !ctx.restartRuntimeForProject) {
+    ctx.showMessage("Project switching is not available in this UI.");
+    return;
+  }
+
+  const picked = await ctx.promptCommandPicker(
+    projectOptions({ session: ctx.session, store: ctx.store }),
+    { title: "Projects" },
+  );
+  if (!picked) return;
+
+  const creating = picked.value === "create";
+  const rawPath = picked.value === "open" || creating
+    ? picked.note
+    : picked.value.startsWith("recent:")
+      ? picked.value.slice("recent:".length)
+      : undefined;
+  if (!rawPath) return;
+  if (creating && !isAbsolute(rawPath)) {
+    ctx.showMessage("Enter the full path for the new Project.");
+    return;
+  }
+  const target = resolve(rawPath);
+
+  if (creating) {
+    if (existsSync(target)) {
+      ctx.showMessage(`A file or directory already exists at: ${target}`);
+      return;
+    }
+    const parent = dirname(target);
+    if (!existsSync(parent) || !statSync(parent).isDirectory()) {
+      ctx.showMessage(`Parent directory does not exist: ${parent}`);
+      return;
+    }
+    try {
+      accessSync(parent, constants.W_OK);
+    } catch {
+      ctx.showMessage(`Parent directory is not writable: ${parent}`);
+      return;
+    }
+  } else {
+    if (!existsSync(target) || !statSync(target).isDirectory()) {
+      ctx.showMessage(`Project directory does not exist: ${target}`);
+      return;
+    }
+    try {
+      accessSync(target, constants.R_OK | constants.X_OK);
+    } catch {
+      ctx.showMessage(`Project directory is not accessible: ${target}`);
+      return;
+    }
+    if (target === resolve(ctx.store.projectPath ?? "")) {
+      ctx.showMessage("This Project is already open.");
+      return;
+    }
+  }
+  const blocker = projectSwitchBlocker(ctx);
+  if (blocker) {
+    ctx.showMessage(blocker);
+    return;
+  }
+
+  if (creating) {
+    const selected = await selectProjectSkills(ctx, target);
+    if (!selected) return;
+    mkdirSync(target);
+    try {
+      const targetStore = new SessionStore({ baseDir: ctx.fermiHomeDir, projectPath: target });
+      saveProjectSettingsPatch({ enabled_skills: selected }, targetStore.projectDir);
+    } catch (error) {
+      if (readdirSync(target).length === 0) rmSync(target, { recursive: true });
+      throw error;
+    }
+  } else if (!await ensureProjectSkillProfile(ctx, target)) {
+    return;
+  }
+
+  ctx.autoSave();
+  await ctx.restartRuntimeForProject(target);
 }
 
 function formatSummarizeLabel(t: { kind: string; turnIndex: number; preview: string }): string {
@@ -2333,6 +2511,7 @@ export function buildDefaultRegistry(): CommandRegistry {
   registry.register({ name: "/help", description: "Show commands and shortcuts", handler: cmdHelp });
   registry.register({ name: "/compact", description: "Manually compact the active context", handler: cmdCompact });
   registry.register({ name: "/new", description: "Start a new session", handler: cmdNew });
+  registry.register({ name: "/project", description: "Open or create a Project", handler: cmdProject });
   registry.register({ name: "/session", description: "Resume a previous session", handler: cmdResume, options: resumeOptions, pickerTitle: "Sessions", aliases: ["/resume"] });
   registry.register({ name: "/summarize", description: "Manually summarize older context", handler: cmdSummarize });
   registry.register({ name: "/summarize_hint", description: "Configure two-tier summarize hints (on/off, trigger levels)", handler: cmdSummarizeHint });
@@ -2341,7 +2520,8 @@ export function buildDefaultRegistry(): CommandRegistry {
   registry.register({ name: "/key", description: "Manage provider API keys", handler: cmdKey, options: keyOptions, pickerTitle: "Manage API key" });
   registry.register({ name: "/tier", description: "Configure sub-agent model tiers", handler: cmdTier, options: tierOptions });
   registry.register({ name: "/quit", description: "Exit the application", handler: cmdQuit, aliases: ["/exit"] });
-  registry.register({ name: "/skills", description: "Manage installed skills", handler: cmdSkills, options: skillsOptions, checkboxMode: true });
+  registry.register({ name: "/skills", description: "Manage global Skill defaults", handler: cmdSkills, options: (ctx) => skillsOptions(ctx, "global"), checkboxMode: true });
+  registry.register({ name: "/proskills", description: "Manage skills for this Project", handler: (ctx, args) => cmdSkills(ctx, args, "project"), options: (ctx) => skillsOptions(ctx, "project"), checkboxMode: true });
   registry.register({ name: "/mcp", description: "Manage MCP servers", handler: cmdMcp, options: mcpOptions, pickerTitle: "MCP Servers" });
   registry.register({ name: "/rename", description: "Rename current session", handler: cmdRename });
   registry.register({ name: "/codex", description: "OpenAI ChatGPT login", handler: cmdCodex, options: codexOptions });
@@ -2740,23 +2920,38 @@ async function cmdMcp(ctx: CommandContext, args: string): Promise<void> {
 // /skills command
 // ------------------------------------------------------------------
 
-function skillsOptions(ctx: CommandOptionsContext): CommandOption[] {
+function skillsOptions(
+  ctx: CommandOptionsContext,
+  scope: "global" | "project" = "project",
+): CommandOption[] {
   const session = ctx.session;
   if (!session?.getAllSkillNames) return [];
   const allSkills = session.getAllSkillNames();
   if (allSkills.length === 0) return [];
+  const globallyDisabled = scope === "global"
+    ? new Set(loadGlobalSettings().disabled_skills ?? [])
+    : null;
 
   return allSkills.map((s: { name: string; description: string; enabled: boolean }) => ({
     label: `${s.name}  ${s.description.length > 50 ? s.description.slice(0, 47) + "..." : s.description}`,
     value: s.name,
-    checked: s.enabled,
+    checked: globallyDisabled ? !globallyDisabled.has(s.name) : s.enabled,
   }));
 }
 
-async function cmdSkills(ctx: CommandContext, args: string): Promise<void> {
+async function cmdSkills(
+  ctx: CommandContext,
+  args: string,
+  scope: "global" | "project" = "global",
+): Promise<void> {
   const session = ctx.session;
   if (!session?.getAllSkillNames) {
     ctx.showMessage("Skills system not available.");
+    return;
+  }
+
+  if (scope === "project" && !ctx.store) {
+    ctx.showMessage("Project storage is not available.");
     return;
   }
 
@@ -2787,17 +2982,26 @@ async function cmdSkills(ctx: CommandContext, args: string): Promise<void> {
       .map((s: { name: string }) => s.name),
   );
 
-  for (const s of allSkills) {
-    session.setSkillEnabled(s.name, enabledNames.has(s.name));
+  if (scope === "project") {
+    session.setProjectSkillProfile([...enabledNames]);
+  } else {
+    for (const s of allSkills) {
+      session.setSkillEnabled(s.name, enabledNames.has(s.name));
+    }
   }
   session.reloadSkills();
+  const enabledAfter = new Set(
+    session.getAllSkillNames()
+      .filter((s: { enabled: boolean }) => s.enabled)
+      .map((s: { name: string }) => s.name),
+  );
   if (typeof session.notifySkillAvailabilityChanged === "function") {
     const enabled = allSkills
       .map((s: { name: string }) => s.name)
-      .filter((name: string) => enabledNames.has(name) && !enabledBefore.has(name));
+      .filter((name: string) => enabledAfter.has(name) && !enabledBefore.has(name));
     const disabled = allSkills
       .map((s: { name: string }) => s.name)
-      .filter((name: string) => !enabledNames.has(name) && enabledBefore.has(name));
+      .filter((name: string) => !enabledAfter.has(name) && enabledBefore.has(name));
     session.notifySkillAvailabilityChanged({ enabled, disabled });
   }
 
@@ -2811,10 +3015,17 @@ async function cmdSkills(ctx: CommandContext, args: string): Promise<void> {
   const disabledSkills = allSkills
     .filter((s: { name: string }) => !enabledNames.has(s.name))
     .map((s: { name: string }) => s.name);
-  persistSettingsPatch(
-    { disabled_skills: disabledSkills.length > 0 ? disabledSkills : undefined },
-    ctx.fermiHomeDir,
-  );
+  if (scope === "project") {
+    const enabledSkills = allSkills
+      .filter((s: { name: string }) => enabledNames.has(s.name))
+      .map((s: { name: string }) => s.name);
+    saveProjectSettingsPatch({ enabled_skills: enabledSkills }, ctx.store!.projectDir);
+  } else {
+    persistSettingsPatch(
+      { disabled_skills: disabledSkills.length > 0 ? disabledSkills : undefined },
+      ctx.fermiHomeDir,
+    );
+  }
 }
 
 // ------------------------------------------------------------------

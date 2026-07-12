@@ -428,6 +428,10 @@ export class SessionStore {
     return this._projectDir;
   }
 
+  get projectPath(): string | undefined {
+    return this._projectPath;
+  }
+
   get artifactsDir(): string | undefined {
     if (!this._sessionDir) return undefined;
     const d = join(this._sessionDir, "artifacts");
@@ -620,6 +624,8 @@ export interface FermiSettings {
 
   // -- Skills --
   disabled_skills?: string[];
+  /** Exact enabled Skill names for one system-managed Project. */
+  enabled_skills?: string[];
 
   // -- Agent Models (per-template model pins, global + local merge) --
   agent_models?: Record<string, AgentModelEntry>;
@@ -1461,6 +1467,16 @@ export function loadGlobalSettings(homeDir?: string): FermiSettings {
   }
 }
 
+export function loadProjectSettings(projectStoreDir: string): FermiSettings {
+  const path = join(projectStoreDir, ".fermi", SETTINGS_FILE);
+  if (!existsSync(path)) return {};
+  try {
+    return parseJsonc<FermiSettings>(readFileSync(path, "utf-8")) ?? {};
+  } catch {
+    return {};
+  }
+}
+
 /**
  * Load project-local settings.
  *
@@ -1475,12 +1491,7 @@ export function loadLocalSettings(projectPath: string, projectStoreDir?: string)
   let base: FermiSettings = {};
 
   if (projectStoreDir) {
-    const storePath = join(projectStoreDir, ".fermi", SETTINGS_FILE);
-    if (existsSync(storePath)) {
-      try {
-        base = parseJsonc<FermiSettings>(readFileSync(storePath, "utf-8")) ?? {};
-      } catch { /* ignore */ }
-    }
+    base = loadProjectSettings(projectStoreDir);
   }
 
   const workspacePath = join(projectPath, ".fermi", SETTINGS_FILE);
@@ -1517,6 +1528,7 @@ export function mergeSettings(global: FermiSettings, local: FermiSettings): Ferm
 
   // Arrays — local replaces
   if (local.disabled_skills !== undefined) merged.disabled_skills = local.disabled_skills;
+  if (local.enabled_skills !== undefined) merged.enabled_skills = local.enabled_skills;
 
   // Objects — per-key merge
   if (local.model_tiers) {
@@ -1619,6 +1631,7 @@ export function saveSettings(settings: FermiSettings, filePath: string): void {
   if (settings.diff_display !== undefined) clean.diff_display = settings.diff_display;
   if (settings.permission_mode !== undefined) clean.permission_mode = settings.permission_mode;
   if (settings.disabled_skills !== undefined) clean.disabled_skills = settings.disabled_skills;
+  if (settings.enabled_skills !== undefined) clean.enabled_skills = settings.enabled_skills;
   if (settings.mcp_servers !== undefined) clean.mcp_servers = settings.mcp_servers;
   if (settings.agent_models !== undefined) clean.agent_models = settings.agent_models;
   if (settings.sub_agent_inherit_mcp !== undefined) clean.sub_agent_inherit_mcp = settings.sub_agent_inherit_mcp;
@@ -1634,6 +1647,16 @@ export function saveSettings(settings: FermiSettings, filePath: string): void {
 export function saveGlobalSettingsPatch(patch: Partial<FermiSettings>, homeDir?: string): void {
   const existing = loadGlobalSettings(homeDir);
   saveSettings({ ...existing, ...patch }, globalSettingsPath(homeDir));
+}
+
+/** Merge a partial update into a system-managed Project settings file. */
+export function saveProjectSettingsPatch(
+  patch: Partial<FermiSettings>,
+  projectStoreDir: string,
+): void {
+  const file = join(projectStoreDir, ".fermi", SETTINGS_FILE);
+  const existing = loadProjectSettings(projectStoreDir);
+  saveSettings({ ...existing, ...patch }, file);
 }
 
 /** Get the global settings.json path. */

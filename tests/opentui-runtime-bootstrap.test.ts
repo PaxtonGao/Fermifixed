@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { bootstrapOpenTuiRuntime, type OpenTuiRuntime } from "../opentui-src/bootstrap.js";
+import { SessionStore } from "../src/persistence.js";
 
 const TEST_KEY_ENV = "FERMI_TEST_OPENAI_API_KEY";
 
@@ -103,6 +104,41 @@ describe("OpenTUI runtime bootstrap", () => {
     } finally {
       await rt2.session.close();
       await fresh.session.close();
+    }
+  });
+
+  it("loads the exact Skill Profile for the selected Project", async () => {
+    for (const name of ["review", "research"]) {
+      const skillDir = join(fermiHome, "skills", name);
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(
+        join(skillDir, "SKILL.md"),
+        `---\nname: ${name}\ndescription: ${name} skill\n---\n\nUse ${name}.\n`,
+      );
+    }
+    const store = new SessionStore({ baseDir: fermiHome, projectPath: projectRoot });
+    mkdirSync(join(store.projectDir, ".fermi"), { recursive: true });
+    writeFileSync(
+      join(store.projectDir, ".fermi", "settings.json"),
+      JSON.stringify({ enabled_skills: ["review"] }),
+    );
+
+    const runtime = await bootstrapOpenTuiRuntime({
+      configOverrides: [],
+      homeDir: fermiHome,
+      projectPath: projectRoot,
+      initHighlighter: false,
+    });
+    try {
+      expect(runtime.store.projectPath).toBe(projectRoot);
+      expect(runtime.session.getAllSkillNames().filter((skill) =>
+        skill.name === "review" || skill.name === "research"
+      )).toEqual([
+        { name: "research", description: "research skill", enabled: false },
+        { name: "review", description: "review skill", enabled: true },
+      ]);
+    } finally {
+      await runtime.session.close();
     }
   });
 });

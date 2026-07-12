@@ -468,6 +468,7 @@ export class Session {
   private _skills = new Map<string, SkillMeta>();
   private _skillRoots: string[] = [];
   private _disabledSkills = new Set<string>();
+  private _enabledSkillProfile: Set<string> | null = null;
 
   // Cached system prompt (static between reloads for prompt cache stability)
   private _cachedSystemPrompt: string | null = null;
@@ -2543,8 +2544,12 @@ export class Session {
     return [...allOnDisk.values()].map((s) => ({
       name: s.name,
       description: s.description,
-      enabled: !this._disabledSkills.has(s.name),
+      enabled: this._isSkillEnabled(s.name),
     }));
+  }
+
+  setProjectSkillProfile(names: string[]): void {
+    this._enabledSkillProfile = new Set(names);
   }
 
   /** Enable or disable a skill by name. Call reloadSkills() afterwards. */
@@ -2604,12 +2609,16 @@ export class Session {
     const freshAll = loadSkillsMulti(this._skillRoots);
     const filtered = new Map<string, SkillMeta>();
     for (const [name, skill] of freshAll) {
-      if (!this._disabledSkills.has(name)) {
+      if (this._isSkillEnabled(name)) {
         filtered.set(name, skill);
       }
     }
     this._skills = filtered;
     this._ensureSkillTool();
+  }
+
+  private _isSkillEnabled(name: string): boolean {
+    return this._enabledSkillProfile?.has(name) ?? !this._disabledSkills.has(name);
   }
 
   /** Execute the `skill` tool — load and return skill instructions. */
@@ -3106,9 +3115,13 @@ export class Session {
       });
     }
 
-    // Restore disabled skills
-    if (settings.disabled_skills && settings.disabled_skills.length > 0) {
+    if (settings.disabled_skills !== undefined) {
       this._disabledSkills = new Set(settings.disabled_skills);
+    }
+    if (settings.enabled_skills !== undefined) {
+      this._enabledSkillProfile = new Set(settings.enabled_skills);
+    }
+    if (settings.disabled_skills !== undefined || settings.enabled_skills !== undefined) {
       this.reloadSkills();
     }
 

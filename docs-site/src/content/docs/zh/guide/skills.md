@@ -8,11 +8,14 @@ title: "技能"
 
 ### 启用/禁用技能
 
-使用 `/skills` 命令打开复选框选择器，启用或禁用已安装技能：
+使用 `/skills` 编辑尚无 Skill Profile 的项目所继承的全局默认值。使用 `/proskills` 编辑当前项目精确的已启用技能列表：
 
 ```text
 /skills
+/proskills
 ```
+
+项目 Profile 保存在 Fermi 的项目级系统数据中，不会写入仓库。Profile 建立后，新安装的技能默认不会加入该项目，需要通过 `/proskills` 主动选择。
 
 ### 安装技能
 
@@ -34,7 +37,7 @@ You: install skill: apple-notes
 技能在会话启动时载入。在磁盘上安装、删除或编辑技能后，变更**不会**立即生效，需要重载技能。有三种方式触发重载：
 
 - 代理调用 `reload` 工具（它会从磁盘重新读取 skills、MCP 服务器和系统提示）。skill-manager 会在最后一步替你完成这步。
-- 你在 `/skills` 选择器中切换某个技能（这会触发重载）。
+- 你在 `/skills` 或 `/proskills` 选择器中切换某个技能（这会触发重载）。
 - 你开启一个新会话。
 
 重载后技能发生变化时，Fermi 会插入一条简短的 `<system-message>`，说明哪些技能现在可用或已消失——这样代理（和你）无需重读整段提示就能看到新能力。
@@ -123,7 +126,8 @@ rm -rf ~/.fermi/skills/skill-name
 |------|------|
 | 从 GitHub 安装 | 让代理执行："install skill: name" |
 | 创建自定义技能 | 在 `~/.fermi/skills/name/` 写入 `SKILL.md` |
-| 启用/禁用 | `/skills` 命令 |
+| 修改全局默认值 | `/skills` 命令 |
+| 修改当前项目 | `/proskills` 命令 |
 | 删除 | 删除目录，然后重载（或开启新会话） |
 
 ## 内置 Skill Manager

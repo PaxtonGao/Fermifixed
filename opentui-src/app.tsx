@@ -143,6 +143,7 @@ export interface OpenTuiAppProps {
   verbose?: boolean;
   onExit: (farewell?: string) => Promise<void> | void;
   onNewSession?: () => Promise<void>;
+  onProjectSwitch?: (projectPath: string) => Promise<void>;
   /** Resolved theme mode. Required: there is no canonical default theme. */
   themeMode: ThemeMode;
   /** User's theme preference. "auto" means follow live terminal theme_mode events. */
@@ -354,6 +355,7 @@ export function OpenTuiApp({
   verbose = false,
   onExit,
   onNewSession,
+  onProjectSwitch,
   themeMode: initialThemeMode,
   themeModePref: initialThemeModePref,
   terminalDefaultFg: initialTerminalFg = null,
@@ -650,6 +652,7 @@ export function OpenTuiApp({
   const promptSelectResolverRef = useRef<((value: string | undefined) => void) | null>(null);
   const promptSecretResolverRef = useRef<((value: string | undefined) => void) | null>(null);
   const commandPickerResolverRef = useRef<((value: CommandPickerResult | undefined) => void) | null>(null);
+  const checkboxPickerResolverRef = useRef<((value: string[] | undefined) => void) | null>(null);
   const pickerNoteInputRef = useRef<InputRenderable | null>(null);
   const [pickerNoteValue, setPickerNoteValue] = useState("");
   const colors = theme.colors;
@@ -1739,8 +1742,10 @@ export function OpenTuiApp({
     return () => {
       promptSelectResolverRef.current?.(undefined);
       promptSecretResolverRef.current?.(undefined);
+      checkboxPickerResolverRef.current?.(undefined);
       promptSelectResolverRef.current = null;
       promptSecretResolverRef.current = null;
+      checkboxPickerResolverRef.current = null;
       if (closingTimerRef.current) {
         clearTimeout(closingTimerRef.current);
         closingTimerRef.current = null;
@@ -1834,6 +1839,7 @@ export function OpenTuiApp({
         renderer?.requestFullRepaint?.();
       },
       restartRuntimeForNewSession: onNewSession,
+      restartRuntimeForProject: onProjectSwitch,
       exit: performExit,
       onTurnRequested: (content: string) => {
         void handleSubmit(content);
@@ -1899,9 +1905,28 @@ export function OpenTuiApp({
           );
         });
       },
+      promptCheckboxPicker: async (options: CommandOption[], title: string) => {
+        resolvePromptSelect(undefined);
+        resolvePromptSecret(undefined);
+        return await new Promise<string[] | undefined>((resolve) => {
+          checkboxPickerResolverRef.current = resolve;
+          setCommandOverlay(EMPTY_COMMAND_OVERLAY);
+          setPromptSelect(null);
+          setCommandPicker(null);
+          setCheckboxPicker(createCheckboxPicker(
+            title,
+            options.map((option) => ({
+              label: option.label,
+              value: option.value,
+              checked: option.checked !== false,
+            })),
+            Math.min(pickerMaxVisible, options.length),
+          ));
+        });
+      },
       requestOAuthLogin,
     };
-  }, [session, store, commandRegistry, autoSave, performExit, onNewSession, resolvePromptSecret, resolvePromptSelect, requestOAuthLogin, pickerMaxVisible, updateContextTokenState]);
+  }, [session, store, commandRegistry, autoSave, performExit, onNewSession, onProjectSwitch, resolvePromptSecret, resolvePromptSelect, requestOAuthLogin, pickerMaxVisible, updateContextTokenState]);
 
   const runTurn = useCallback(async (input: string, inlineImages?: InlineImageInput[]) => {
     const controller = new AbortController();
@@ -2173,7 +2198,7 @@ export function OpenTuiApp({
   // against turns via its turn lock, so they need no UI "Working" state. While
   // a turn is processing we only intercept them with a hint so they are not
   // queued to the LLM as a user message.
-  const SESSION_CONFIG_COMMANDS = new Set(["/mcp", "/skills"]);
+  const SESSION_CONFIG_COMMANDS = new Set(["/mcp", "/skills", "/proskills", "/project"]);
 
   const handleSubmit = useCallback(async (submittedValue: string) => {
     const input = submittedValue.trim();
@@ -2537,9 +2562,15 @@ export function OpenTuiApp({
     if (result.kind !== "submit") return;
 
     const enabled = result.items.filter((item) => item.checked).map((item) => item.value);
-    const args = enabled.length > 0 ? enabled.join(",") : ",";
+    const resolver = checkboxPickerResolverRef.current;
+    checkboxPickerResolverRef.current = null;
     setCheckboxPicker(null);
-    await handleSubmit(`/skills ${args}`);
+    if (resolver) {
+      resolver(enabled);
+      return;
+    }
+    const args = enabled.length > 0 ? enabled.join(",") : ",";
+    await handleSubmit(`${checkboxPicker.title} ${args}`);
   }, [checkboxPicker, handleSubmit]);
 
   const deleteToVisualLineStart = useCallback(() => {
@@ -2982,6 +3013,8 @@ export function OpenTuiApp({
         return;
       }
       if (event.name === "escape") {
+        checkboxPickerResolverRef.current?.(undefined);
+        checkboxPickerResolverRef.current = null;
         setCheckboxPicker(null);
         event.preventDefault();
         event.stopPropagation();
@@ -3349,6 +3382,8 @@ export function OpenTuiApp({
         return;
       }
       if (checkboxPicker) {
+        checkboxPickerResolverRef.current?.(undefined);
+        checkboxPickerResolverRef.current = null;
         setCheckboxPicker(null);
         setCommandOverlay(EMPTY_COMMAND_OVERLAY);
         return;
@@ -3820,7 +3855,11 @@ export function OpenTuiApp({
       onBackgroundMouseDown={() => {
         if (commandOverlay.visible) setCommandOverlay(EMPTY_COMMAND_OVERLAY);
         if (commandPicker) setCommandPicker(null);
-        if (checkboxPicker) setCheckboxPicker(null);
+        if (checkboxPicker) {
+          checkboxPickerResolverRef.current?.(undefined);
+          checkboxPickerResolverRef.current = null;
+          setCheckboxPicker(null);
+        }
       }}
     />
   );
