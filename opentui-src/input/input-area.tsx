@@ -2,11 +2,14 @@
 
 import React from "react";
 
-import { createTextAttributes, type KeyBinding, type TextareaRenderable } from "@opentui/core";
+import { createTextAttributes } from "@opentui/core";
+
+// Side-effect import: registers the <fermiComposer> intrinsic element + JSX types.
+import "../composer/composer-element.js";
 
 const ATTRS_BOLD = createTextAttributes({ bold: true });
+import type { FermiComposerRenderable } from "../composer/composer-renderable.js";
 import type { ConversationPalette } from "../components/conversation-types.js";
-import type { ComposerTokenVisuals } from "../composer-tokens.js";
 import type { ActivityPhase } from "../display/types.js";
 import { formatCompactTokensShort } from "../display/utils/format.js";
 import { formatElapsed } from "../presentation/use-turn-timer.js";
@@ -18,8 +21,26 @@ import {
   ASKING_SPINNER_INTERVAL,
 } from "../presentation/use-spinner.js";
 
+/**
+ * Text color per agent mode; also tints the input border. `default` is
+ * deliberately absent — default mode renders exactly as before (dim border,
+ * no mode label), keeping the common case zero-noise.
+ */
+const MODE_COLORS: Record<string, string> = {
+  vibe: "#56B6C2",
+  scale: "#b4a0ec",
+  auto: "#D19A66",
+};
+
+function formatGoalElapsedShort(createdAt: number): string {
+  const totalMin = Math.max(0, Math.floor((Date.now() - createdAt) / 60_000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h${m.toString().padStart(2, "0")}m` : `${m}m`;
+}
+
 interface InputAreaProps {
-  inputRef: React.RefObject<TextareaRenderable | null>;
+  inputRef: React.RefObject<FermiComposerRenderable | null>;
   processing: boolean;
   pendingAsk: boolean;
   selectedChildId: string | null;
@@ -32,6 +53,14 @@ interface InputAreaProps {
   elapsed: number;
   cwd: string;
   permissionMode?: string;
+  /** Agent mode; "default" renders nothing (zero-noise). */
+  agentMode?: string;
+  /** Open the /mode picker. */
+  onModeClick?: () => void;
+  /** Active goal creation timestamp; null/undefined = no goal indicator. */
+  goalCreatedAt?: number | null;
+  /** Open the /goal picker. */
+  onGoalClick?: () => void;
   hint: string | null;
   contextTokens: number;
   contextLimit: number | undefined;
@@ -46,8 +75,6 @@ interface InputAreaProps {
   contentWidth: number;
   colors: ConversationPalette;
   maxInputLines: number;
-  composerTokenVisuals: ComposerTokenVisuals;
-  keyBindings: readonly KeyBinding[];
   onSubmit: () => void;
   onModelClick: () => void;
   onPermissionClick?: () => void;
@@ -90,22 +117,63 @@ function getPhaseColor(phase: ActivityPhase, colors: ConversationPalette): strin
   return "#56B6C2";
 }
 
+interface BottomRowLayout {
+  showPermission: boolean;
+  showPermissionHint: boolean;
+  showMode: boolean;
+  showModeHint: boolean;
+  showUsage: boolean;
+  showGoal: boolean;
+}
+
 /**
- * Decide whether the usage indicator fits on the bottom row alongside cwd
- * and context. `hint` is NOT reserved — it has flexShrink={1} + truncate,
- * so it collapses to whatever space is left. If the fixed-shrink parts
- * (cwd + usage + context + separators) fit inside contentWidth, we show
- * the usage indicator; otherwise it's hidden entirely.
+ * Decide which optional segments of the bottom status row fit, instead of
+ * letting the terminal word-wrap them onto extra lines (each <text> wraps
+ * independently once it's forced to shrink below its content width — that's
+ * what produced the multi-line fold). `hint` bypasses this entirely (it
+ * replaces the whole left cluster and truncates itself).
+ *
+ * This is a strict priority CHAIN, not independent per-item fit checks: once
+ * one item in the order below doesn't fit, every item after it is cut too,
+ * even if a later item is individually shorter and would otherwise fit on
+ * its own. Without that cascade, " (Shift+Tab)" (12 cols) could fail to fit
+ * while the later, shorter " (Tab)" (6 cols) still did — making the two
+ * hints drop inconsistently instead of in a fixed order.
+ *
+ * Priority, highest first — context usage is never dropped:
+ * context > permission label > mode label > usage indicator > goal timer
+ * > " (Shift+Tab)" hint > " (Tab)" hint.
  */
-function shouldShowUsage(
+function computeBottomRowLayout(
   contentWidth: number,
-  cwdLen: number,
+  permissionLabelLen: number,
+  agentMode: string | undefined,
   usageLen: number,
+  goalLen: number,
   contextLen: number,
-): boolean {
+): BottomRowLayout {
   const inner = contentWidth - 2; // paddingLeft=1 + paddingRight=1
-  const fixedWidth = cwdLen + usageLen + contextLen + 4; // "  " × 2 separators
-  return inner >= fixedWidth;
+  let used = 2 + contextLen; // "  " + contextText — always reserved
+  let fits = true; // once false, every remaining (lower-priority) item is cut
+
+  const tryTake = (width: number): boolean => {
+    if (!fits) return false;
+    if (used + width > inner) {
+      fits = false;
+      return false;
+    }
+    used += width;
+    return true;
+  };
+
+  const showPermission = tryTake(permissionLabelLen);
+  const showMode = !!agentMode && tryTake(3 + agentMode.length); // " · " + mode
+  const showUsage = usageLen > 0 && tryTake(2 + usageLen); // "  " + usage
+  const showGoal = goalLen > 0 && tryTake(goalLen);
+  const showPermissionHint = showPermission && tryTake(12); // " (Shift+Tab)"
+  const showModeHint = showMode && tryTake(6); // " (Tab)"
+
+  return { showPermission, showPermissionHint, showMode, showModeHint, showUsage, showGoal };
 }
 
 function InputAreaInner(props: InputAreaProps): React.ReactNode {
@@ -121,6 +189,10 @@ function InputAreaInner(props: InputAreaProps): React.ReactNode {
     elapsed,
     cwd,
     permissionMode,
+    agentMode,
+    onModeClick,
+    goalCreatedAt,
+    onGoalClick,
     hint,
     contextTokens,
     contextLimit,
@@ -129,8 +201,6 @@ function InputAreaInner(props: InputAreaProps): React.ReactNode {
     contentWidth,
     colors,
     maxInputLines,
-    composerTokenVisuals,
-    keyBindings,
     onSubmit,
     onModelClick,
     onPermissionClick,
@@ -170,6 +240,28 @@ function InputAreaInner(props: InputAreaProps): React.ReactNode {
   const contextText = contextLimit
     ? `${formatCompactTokensShort(contextTokens)}/${formatCompactTokensShort(contextLimit)}${cacheLabel}`
     : `${formatCompactTokensShort(contextTokens)}${cacheLabel}`;
+
+  // Mode tint: non-default modes color the border and their bottom-row label.
+  // Default keeps the dim border, and its label falls back to the normal text
+  // color — readable, but the absence of a tint is itself the "no special
+  // mode" signal (the dim gray is reserved for the keyboard-hint suffixes).
+  const modeColor = agentMode ? MODE_COLORS[agentMode] : undefined;
+
+  const permissionColor = permissionMode === "yolo"
+    ? colors.red
+    : permissionMode === "read_only" ? "#2dd4a8" : colors.accent;
+  const permissionLabel = permissionMode === "yolo"
+    ? "Full auto"
+    : permissionMode === "read_only" ? "Read-only" : "Reversible";
+  const goalText = goalCreatedAt ? ` · goal ${formatGoalElapsedShort(goalCreatedAt)}` : "";
+  const bottomRowLayout = computeBottomRowLayout(
+    contentWidth,
+    permissionLabel.length,
+    agentMode,
+    usageText?.length ?? 0,
+    goalText.length,
+    contextText.length,
+  );
 
   return (
     <box flexDirection="column" gap={0} flexShrink={0}>
@@ -267,29 +359,30 @@ function InputAreaInner(props: InputAreaProps): React.ReactNode {
         flexShrink={0}
         border={true}
         borderStyle="rounded"
-        borderColor={colors.dim}
+        borderColor={modeColor ?? colors.dim}
         paddingRight={1}
       >
         <text fg="#d4d4d4" attributes={ATTRS_BOLD} content="❯ " flexShrink={0} />
-        <textarea
+        <fermiComposer
           ref={(node: any) => {
             (inputRef as any).current = node;
+            // The reconciler's setProperty special-cases the name "onSubmit"
+            // for native classes and silently drops it for custom ones (only
+            // the constructor options would see it, freezing the mount-time
+            // closure). Wiring through the inline ref keeps it fresh: the
+            // callback identity changes every render, so React re-runs it.
+            if (node) node.onSubmit = onSubmit;
           }}
-          placeholder={placeholder}
           focused={focused}
+          placeholder={placeholder}
           textColor={selectedChildId ? colors.muted : colors.text}
-          focusedTextColor={selectedChildId ? colors.muted : colors.text}
           placeholderColor={colors.muted}
-          cursorStyle={{ style: "line", blinking: true }}
+          tokenColor={colors.accent}
           cursorColor="#ffffff"
           flexGrow={1}
-          maxHeight={maxInputLines}
           minHeight={1}
-          syntaxStyle={composerTokenVisuals.syntaxStyle}
-          keyBindings={[...keyBindings]}
-          onSubmit={onSubmit}
-          wrapMode="word"
-          scrollMargin={0}
+          maxHeight={maxInputLines}
+          maxLines={maxInputLines}
         />
       </box>
 
@@ -297,6 +390,7 @@ function InputAreaInner(props: InputAreaProps): React.ReactNode {
       {!commandOverlayVisible && !commandPicker && !checkboxPicker && !promptSelect && !promptSecret && !pendingAsk ? (
         <box flexDirection="row" width="100%" paddingLeft={1} paddingRight={1}>
           <box
+            flexDirection="row"
             flexShrink={1}
             flexGrow={0}
             cursor={!hint && onPermissionClick ? "pointer" : undefined}
@@ -304,15 +398,36 @@ function InputAreaInner(props: InputAreaProps): React.ReactNode {
           >
             {hint ? (
               <text fg={colors.dim} content={hint} truncate />
-            ) : (
-              <text
-                fg={permissionMode === "yolo" ? colors.red : permissionMode === "read_only" ? "#2dd4a8" : colors.accent}
-                content={permissionMode === "yolo" ? "Full auto" : permissionMode === "read_only" ? "Read-only" : "Reversible"}
-              />
-            )}
+            ) : bottomRowLayout.showPermission ? (
+              <>
+                <text fg={permissionColor} content={permissionLabel} />
+                {bottomRowLayout.showPermissionHint ? <text fg={colors.dim} content=" (Shift+Tab)" /> : null}
+              </>
+            ) : null}
           </box>
+          {!hint && bottomRowLayout.showMode ? (
+            <box
+              flexDirection="row"
+              flexShrink={0}
+              cursor="pointer"
+              onMouseDown={(e: any) => { e.stopPropagation(); e.preventDefault(); onModeClick?.(); }}
+            >
+              <text fg={colors.dim} content=" · " />
+              <text fg={modeColor ?? colors.text} content={agentMode} />
+              {bottomRowLayout.showModeHint ? <text fg={colors.dim} content=" (Tab)" /> : null}
+            </box>
+          ) : null}
+          {!hint && bottomRowLayout.showGoal ? (
+            <box
+              flexShrink={0}
+              cursor="pointer"
+              onMouseDown={(e: any) => { e.stopPropagation(); e.preventDefault(); onGoalClick?.(); }}
+            >
+              <text fg={colors.dim} content={goalText} />
+            </box>
+          ) : null}
           <box flexGrow={1} />
-          {usageText && shouldShowUsage(contentWidth, 11, usageText.length, contextText.length) ? (
+          {bottomRowLayout.showUsage && usageText ? (
             <text fg={colors.dim} content={`  ${usageText}`} flexShrink={0} />
           ) : null}
           <text fg={colors.dim} content={`  ${contextText}`} flexShrink={0} />

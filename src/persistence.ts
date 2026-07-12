@@ -535,9 +535,19 @@ export interface LogSessionMeta {
   turnCount: number;
   compactCount: number;
   thinkingLevel: string;
+  /** Agent mode selection; omitted when "default". */
+  mode?: string;
+  /** Active goal (condition-driven continuation); omitted when none. */
+  goal?: PersistedGoalState;
   childSessions?: ChildSessionMetaRecord[];
   /** Root session's frozen inbox (persisted on close for snapshot/restore). */
   inbox?: import("./session-tree-types.js").MessageEnvelope[];
+}
+
+/** Persisted /goal state — an active goal survives session close and resume. */
+export interface PersistedGoalState {
+  condition: string;
+  createdAt: number;
 }
 
 /** Local inference server config (oMLX, LM Studio, etc.) */
@@ -549,6 +559,8 @@ export interface LocalModelEntry {
   multimodal?: boolean;
   thinkingLevels?: string[];
   webSearch?: boolean;
+  /** Prompt-pedagogy tier override (default: family heuristic). */
+  guidance?: "standard" | "detailed";
 }
 
 /**
@@ -718,6 +730,11 @@ export interface CustomModelEntry {
   thinking_levels?: string[];
   /** Native web search. Default false. */
   web_search?: boolean;
+  /**
+   * Prompt-pedagogy tier override. Default is a family heuristic (Claude/GPT
+   * ids → "standard", everything else → "detailed" recipes).
+   */
+  guidance?: "standard" | "detailed";
 }
 
 /** MCP server entry in settings.json. Same shape as the old mcp.json values. */
@@ -1696,6 +1713,7 @@ export function settingsToConfigInputs(settings: FermiSettings): {
               multimodal: m.multimodal,
               thinkingLevels: m.thinking_levels,
               webSearch: m.web_search,
+              guidance: m.guidance,
             }))
           : [{ id: entry.model!, contextLength: entry.context_length ?? 128_000 }];
         localProviders[id] = {

@@ -2,13 +2,13 @@
 
 import React from "react";
 
-import type { InputRenderable, KeyBinding, ScrollBoxRenderable, TextareaRenderable } from "@opentui/core";
+import type { ScrollBoxRenderable } from "@opentui/core";
+import type { FermiComposerRenderable, FermiInputRenderable } from "../../composer/composer-renderable.js";
 import type { PendingAskUi } from "../../../src/ask.js";
 import type { AgentQuestionItem } from "../../../src/ask.js";
 import type { CommandPickerState } from "../../../src/ui/command-picker.js";
 import type { CheckboxPickerState } from "../../../src/ui/checkbox-picker.js";
 import type { PresentationEntry } from "../../presentation/types.js";
-import type { ComposerTokenVisuals } from "../../composer-tokens.js";
 import { createTextAttributes } from "@opentui/core";
 import { LogoBlock, PresentationPanel } from "../../components/entry/presentation-panel.js";
 import { VERSION } from "../../../src/version.js";
@@ -66,6 +66,12 @@ export interface OpenTuiScreenProps {
   /** Pre-formatted usage line (e.g. "5h: 90% left | wk: 80% left" or "month: 300/300 left"); null to hide. */
   usageText?: string | null;
   permissionMode?: string;
+  /** Agent mode for the input area tint + label ("default" = no tint). */
+  agentMode?: string;
+  onModeClick?: () => void;
+  /** Active goal creation timestamp for the goal indicator; null = none. */
+  goalCreatedAt?: number | null;
+  onGoalClick?: () => void;
   presentationEntries: readonly PresentationEntry[];
   processing: boolean;
   markdownMode: "rendered" | "raw";
@@ -86,19 +92,19 @@ export interface OpenTuiScreenProps {
   reviewMode: boolean;
   askInputValue: string;
   optionNotes: Map<string, string>;
-  askInputRef: React.RefObject<InputRenderable | null>;
+  askInputRef: React.RefObject<FermiInputRenderable | null>;
   onAskInput: (value: string) => void;
   onAskSubmit: (value: string) => void;
   getAskQuestions: () => AgentQuestionItem[];
   commandOverlay: CommandOverlayState;
   commandPicker: CommandPickerState | null;
-  pickerNoteInputRef: React.RefObject<InputRenderable | null>;
+  pickerNoteInputRef: React.RefObject<FermiInputRenderable | null>;
   pickerNoteValue: string;
   onPickerNoteInput: (value: string) => void;
   checkboxPicker: CheckboxPickerState | null;
   promptSelect: PromptSelectState | null;
   promptSecret: PromptSecretState | null;
-  promptSecretInputRef: React.RefObject<InputRenderable | null>;
+  promptSecretInputRef: React.RefObject<FermiInputRenderable | null>;
   oauthOverlay: OAuthOverlayState | null;
   helpPanel: boolean;
   onOverlayItemClick: (index: number) => void;
@@ -106,15 +112,13 @@ export interface OpenTuiScreenProps {
   onCheckboxPickerItemClick: (index: number) => void;
   onPromptSelectItemClick: (index: number) => void;
   onPromptSecretSubmit: (value: string) => void;
-  inputRef: React.RefObject<TextareaRenderable | null>;
+  inputRef: React.RefObject<FermiComposerRenderable | null>;
   phase: ActivityPhase;
   modelName: string;
   thinkingSuffix: string;
   modelColor: string;
   turnElapsed: number;
   hint: string | null;
-  composerTokenVisuals: ComposerTokenVisuals;
-  keyBindings: readonly KeyBinding[];
   onSubmit: () => void;
   onModelClick: () => void;
   onPermissionClick?: () => void;
@@ -186,6 +190,10 @@ export function OpenTuiScreen({
   cacheReadTokens,
   usageText,
   permissionMode,
+  agentMode,
+  onModeClick,
+  goalCreatedAt,
+  onGoalClick,
   presentationEntries,
   processing,
   markdownMode,
@@ -233,8 +241,6 @@ export function OpenTuiScreen({
   modelColor,
   turnElapsed,
   hint,
-  composerTokenVisuals,
-  keyBindings,
   onSubmit,
   onModelClick,
   onPermissionClick,
@@ -333,6 +339,10 @@ export function OpenTuiScreen({
       elapsed={turnElapsed}
       cwd={shortenPath(process.cwd())}
       permissionMode={permissionMode}
+      agentMode={agentMode}
+      onModeClick={onModeClick}
+      goalCreatedAt={goalCreatedAt}
+      onGoalClick={onGoalClick}
       hint={hint}
       contextTokens={contextTokens}
       contextLimit={contextLimit}
@@ -341,8 +351,6 @@ export function OpenTuiScreen({
       contentWidth={Math.max(20, conversationColumnWidth - effectiveSidebarWidth)}
       colors={theme.colors}
       maxInputLines={theme.layout.inputMaxVisibleLines}
-      composerTokenVisuals={composerTokenVisuals}
-      keyBindings={keyBindings}
       onSubmit={onSubmit}
       onModelClick={onModelClick}
       onPermissionClick={onPermissionClick}

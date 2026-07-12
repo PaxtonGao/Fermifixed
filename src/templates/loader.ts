@@ -9,19 +9,22 @@
  *   +-- main/
  *   |   +-- agent.yaml          # required
  *   |   +-- system_prompt.md    # referenced by system_prompt_file
- *   |   +-- tools.md            # referenced by tools_prompt_file
+ *   |   +-- policy.md           # referenced by tools_prompt_file (optional)
  *   |   +-- knowledge/          # optional -- files appended to system prompt
  *   |       +-- style_guide.md
  *
  * Prompt assembly (per template):
  *
- *   agent.prompt = roleBody + toolPromptContent + knowledge
+ *   agent.prompt = roleBody + toolGuidelines + policy + knowledge
  *
- *   1. roleBody      — system_prompt_file (required)
- *   2. toolPrompt    — tools_prompt_file (preferred) OR tier-default (fallback)
- *   3. knowledge     — all files under knowledge/ (optional)
+ *   1. roleBody       — system_prompt_file (required)
+ *   2. toolGuidelines — GENERATED from src/tools/docs/ per the template's
+ *                       resolved tool set (Session widens it with the
+ *                       capability-derived comm tools)
+ *   3. policy         — tools_prompt_file (optional hand-written policy)
+ *   4. knowledge      — all files under knowledge/ (optional)
  *
- * Session-level layers (AGENTS.md memory, agent model pins, future hooks)
+ * Session-level layers (AGENTS.md memory, agent model pins, skills listing)
  * are added separately by `src/prompt-assembler.ts` on top of agent.prompt.
  */
 
@@ -33,6 +36,7 @@ import { Agent } from "../agents/agent.js";
 import type { Config } from "../config.js";
 import type { ToolDef } from "../providers/base.js";
 import { BASIC_TOOLS, BASIC_TOOLS_MAP } from "../tools/basic.js";
+import { buildToolGuidelinesSection } from "../tools/tool-docs.js";
 import type { MCPClientManager } from "../mcp-client.js";
 
 // ------------------------------------------------------------------
@@ -83,12 +87,13 @@ export function resolveToolTier(spec: Record<string, unknown>): ToolTier | null 
   );
 }
 
-/** Resolve a tier-default tool prompt. Returns null if no bundled prompt exists. */
-function resolveTierDefaultPrompt(_spec: Record<string, unknown>): string | null {
-  // Tier default prompts are a future extension point.
-  // Currently all bundled templates declare tools_prompt_file, so this
-  // only fires for custom templates that omit it. Return null to skip.
-  return null;
+/**
+ * Resolve the tool names a template declares (tool_tier or tools list),
+ * for the generated Tool Guidelines section. Does not include comm tools —
+ * Session adds those per capabilities via commToolNamesForCapabilities.
+ */
+export function resolveToolNames(spec: Record<string, unknown>): string[] {
+  return resolveTools(spec).map((t) => t.name);
 }
 
 /**
@@ -126,30 +131,65 @@ export interface PromptRecipe {
 export interface PromptLayers {
   /** Role body from system_prompt.md (core behavioral instructions). */
   roleBody: string;
-  /** Tool documentation from tools.md (detailed usage docs per tool). */
+  /** Generated Tool Guidelines section + optional template policy file. */
   toolDocs: string;
   /** Knowledge files (optional, concatenated). */
   knowledge: string;
+}
+
+/** Options for prompt assembly from a recipe. */
+export interface AssembleSystemPromptOptions {
+  /**
+   * Tool names for the generated Tool Guidelines section. When set (by
+   * Session, which knows the final capability-derived tool set), it replaces
+   * the template-declared tool list. MCP tools are never included — their
+   * documentation travels in their own schemas.
+   */
+  guidelineTools?: string[];
+  /**
+   * The "# Mode" stance section (main agent only), inserted right after the
+   * role body so it frames everything that follows. Built by Session from
+   * the baked mode (src/modes/); sub-agents never pass it.
+   */
+  modeSection?: string;
+  /**
+   * Extra context-management pedagogy appended after the template policy
+   * file. Keyed on the model's guidance tier (detailed models get explicit
+   * recipes); rebuilt on model switch alongside the rest of the prompt.
+   */
+  contextGuidance?: string;
 }
 
 /**
  * Return the individual prompt layers that assembleSystemPrompt would concatenate.
  * Used by the usage panel to estimate per-section token costs.
  */
-export function getPromptLayers(recipe: PromptRecipe): PromptLayers {
+export function getPromptLayers(
+  recipe: PromptRecipe,
+  opts?: AssembleSystemPromptOptions,
+): PromptLayers {
   const { templateDir, spec } = recipe;
-  const roleBody = resolveSystemPrompt(spec, templateDir);
+  let roleBody = resolveSystemPrompt(spec, templateDir);
+  if (opts?.modeSection) {
+    roleBody = roleBody.trimEnd() + "\n\n" + opts.modeSection;
+  }
 
-  let toolDocs = "";
+  const parts: string[] = [];
+  const guidelines = buildToolGuidelinesSection(
+    opts?.guidelineTools ?? resolveToolNames(spec),
+  );
+  if (guidelines) parts.push(guidelines);
+
   const toolsPromptFile = spec["tools_prompt_file"] as string | undefined;
   if (toolsPromptFile) {
     const toolsPath = join(templateDir, toolsPromptFile);
     if (existsSync(toolsPath)) {
-      toolDocs = readFileSync(toolsPath, "utf-8").trimEnd();
+      const policy = readFileSync(toolsPath, "utf-8").trimEnd();
+      if (policy) parts.push(policy);
     }
-  } else {
-    toolDocs = resolveTierDefaultPrompt(spec) ?? "";
   }
+  if (opts?.contextGuidance) parts.push(opts.contextGuidance);
+  const toolDocs = parts.join("\n\n");
 
   let knowledge = "";
   const knowledgeDir = join(templateDir, "knowledge");
@@ -170,13 +210,29 @@ export function getPromptLayers(recipe: PromptRecipe): PromptLayers {
   return { roleBody, toolDocs, knowledge };
 }
 
-export function assembleSystemPrompt(recipe: PromptRecipe): string {
+export function assembleSystemPrompt(
+  recipe: PromptRecipe,
+  opts?: AssembleSystemPromptOptions,
+): string {
   const { templateDir, spec } = recipe;
 
   // --- 1. Role body (core system prompt) ---
   let systemPrompt = resolveSystemPrompt(spec, templateDir);
 
-  // --- 2. Tool prompt (custom file > tier default) ---
+  // --- 2. Mode stance (main agent only — Session passes the baked mode) ---
+  if (opts?.modeSection) {
+    systemPrompt = systemPrompt.trimEnd() + "\n\n" + opts.modeSection;
+  }
+
+  // --- 3. Generated Tool Guidelines (single-sourced per-tool guides) ---
+  const guidelines = buildToolGuidelinesSection(
+    opts?.guidelineTools ?? resolveToolNames(spec),
+  );
+  if (guidelines) {
+    systemPrompt = systemPrompt.trimEnd() + "\n\n" + guidelines;
+  }
+
+  // --- 4. Template policy file (hand-written, template-specific) ---
   const toolsPromptFile = spec["tools_prompt_file"] as string | undefined;
   if (toolsPromptFile) {
     const toolsPath = join(templateDir, toolsPromptFile);
@@ -186,14 +242,14 @@ export function assembleSystemPrompt(recipe: PromptRecipe): string {
         systemPrompt = systemPrompt.trimEnd() + "\n\n" + toolsContent;
       }
     }
-  } else {
-    const tierPrompt = resolveTierDefaultPrompt(spec);
-    if (tierPrompt) {
-      systemPrompt = systemPrompt.trimEnd() + "\n\n" + tierPrompt;
-    }
   }
 
-  // --- 3. Knowledge files (optional directory) ---
+  // --- 5. Context-management pedagogy (guidance-tier keyed, Session-passed) ---
+  if (opts?.contextGuidance) {
+    systemPrompt = systemPrompt.trimEnd() + "\n\n" + opts.contextGuidance;
+  }
+
+  // --- 6. Knowledge files (optional directory) ---
   const knowledgeDir = join(templateDir, "knowledge");
   if (existsSync(knowledgeDir) && statSync(knowledgeDir).isDirectory()) {
     const knowledgeParts: string[] = [];

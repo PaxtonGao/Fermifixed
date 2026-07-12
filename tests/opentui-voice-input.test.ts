@@ -47,10 +47,10 @@ describe("opentui voice input", () => {
     expect(resolveVoiceConfirmAction(false, false)).toBe("empty");
   });
 
-  it("does not start transcription while rewriting", () => {
+  it("queues audio while transcribing and skips it while rewriting", () => {
     expect(resolveVoiceFileAction(false, false)).toBe("transcribe");
     expect(resolveVoiceFileAction(false, true)).toBe("skip");
-    expect(resolveVoiceFileAction(true, false)).toBe("skip");
+    expect(resolveVoiceFileAction(true, false)).toBe("queue");
   });
 
   it("shows recent transcript text in the voice hint without growing unbounded", () => {

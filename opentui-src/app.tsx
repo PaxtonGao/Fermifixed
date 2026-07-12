@@ -16,9 +16,9 @@ import type { ChildSessionSnapshot } from "../src/session-tree-types.js";
 import { saveGlobalSettingsPatch, saveLog } from "../src/persistence.js";
 import { projectQueuedInputs } from "../src/log-projection.js";
 import { isCommandExitSignal } from "../src/commands.js";
+import { coerceAgentMode, nextAgentMode } from "../src/modes/index.js";
 import { ProgressReporter, type ProgressEvent } from "../src/progress.js";
 import { scanCandidates } from "../src/file-attach.js";
-import { classifyPastedText, TurnPasteCounter } from "../src/ui/input/paste.js";
 import { readClipboardImage } from "../src/clipboard-image.js";
 import { processImage, type ProcessedImage } from "../src/image-compress.js";
 import { getUpdateState, triggerRelaunch } from "../src/update-check.js";
@@ -59,10 +59,7 @@ import {
   type CheckboxPickerState,
 } from "../src/ui/checkbox-picker.js";
 import {
-  type InputRenderable,
-  type KeyBinding,
   type ScrollBoxRenderable,
-  type TextareaRenderable,
 } from "@opentui/core";
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react";
 import "./forked/patch-opentui-markdown.js";
@@ -100,17 +97,10 @@ import {
 } from "../src/auth/github-copilot-oauth.js";
 import {
   buildFileReferenceLabel,
-  createComposerTokenVisuals,
   displayWidthWithNewlines,
-  ensureComposerTokenType,
   findFileReferenceQuery,
-  getComposerTokenSnapshots,
-  getTextDiffRange,
-  patchComposerExtmarksForDisplayWidth,
-  replaceRangeWithComposerToken,
-  serializeComposerText,
-  type ComposerTokenVisuals,
-} from "./composer-tokens.js";
+} from "./composer-token-logic.js";
+import type { FermiComposerRenderable, FermiInputRenderable } from "./composer/composer-renderable.js";
 import { createDisplayTheme, type DisplayTheme, type DisplayThemeTokens, type DeepPartial, type ThemeMode } from "./display/theme/index.js";
 import { ContextUsageCard, CodexUsageCard } from "./display/panels/usage-cards.js";
 import { StatusPanel } from "./display/panels/status-panel.js";
@@ -129,7 +119,6 @@ import {
 import { clamp, computePickerMaxVisible } from "./display/layout/metrics.js";
 import { OpenTuiScreen } from "./display/layout/open-tui-screen.js";
 import { resolveModelNameColor } from "./display/utils/model.js";
-import { getDeleteToVisualLineStartAction } from "./input/delete-to-visual-line-start.js";
 import { appendPromptHistory, getPromptHistoryNavigationDirection, navigatePromptHistory } from "./input/prompt-history.js";
 import { appendVoiceText, classifyVoiceTranscript, cleanVoiceTranscript, formatVoiceHint, getVoiceUndoText, isVoiceDraftEdit, isVoiceHotkey, isVoiceNoiseTranscript, resolveVoiceConfirmAction, resolveVoiceFileAction, type VoiceMutation } from "./voice/voice-input.js";
 import { rewriteVoicePrompt, transcribeVoiceFile, type VoiceApiConfig } from "./voice/voice-api.js";
@@ -191,21 +180,6 @@ const GOODBYE_MESSAGES = [
 ] as const;
 
 const ASSISTANT_RENDERER_MODE = getFermiAssistantRenderer();
-
-const DISABLED_TEXTAREA_ACTION = "__disabled__" as unknown as KeyBinding["action"];
-
-const COMPOSER_KEY_BINDINGS: KeyBinding[] = [
-  { name: "return", action: "submit" },
-  { name: "linefeed", action: "submit" },
-  { name: "return", shift: true, action: "newline" },
-  { name: "return", meta: true, action: "newline" },
-  { name: "n", ctrl: true, action: "newline" },
-  { name: "up", action: DISABLED_TEXTAREA_ACTION },
-  { name: "down", action: DISABLED_TEXTAREA_ACTION },
-  { name: "backspace", meta: true, action: DISABLED_TEXTAREA_ACTION },
-  { name: "backspace", super: true, action: DISABLED_TEXTAREA_ACTION },
-  { name: "u", ctrl: true, action: DISABLED_TEXTAREA_ACTION },
-];
 
 function isDeleteToVisualLineStartShortcut(
   event: {
@@ -593,6 +567,8 @@ export function OpenTuiApp({
   const [statData, setStatData] = useState<import("./display/overlays/stat-panel.js").StatData | null>(null);
   const [markdownMode, setMarkdownMode] = useState<"rendered" | "raw">("rendered");
   const [permissionModeState, setPermissionModeState] = useState<string>(session.permissionMode ?? "reversible");
+  const [agentModeState, setAgentModeState] = useState<string>(session.mode ?? "default");
+  const [goalCreatedAt, setGoalCreatedAt] = useState<number | null>(session.goal?.createdAt ?? null);
   const [pendingAsk, setPendingAsk] = useState<PendingAskUi | null>(
     typeof session.getPendingAsk === "function" ? session.getPendingAsk() : null,
   );
@@ -622,9 +598,9 @@ export function OpenTuiApp({
   // currently visible scrollbox.
   const mainScrollRef = useRef<ScrollBoxRenderable>(null);
   const detailScrollRef = useRef<ScrollBoxRenderable>(null);
-  const inputRef = useRef<TextareaRenderable | null>(null);
-  const promptSecretInputRef = useRef<InputRenderable | null>(null);
-  const askInputRef = useRef<InputRenderable | null>(null);
+  const inputRef = useRef<FermiComposerRenderable | null>(null);
+  const promptSecretInputRef = useRef<FermiInputRenderable | null>(null);
+  const askInputRef = useRef<FermiInputRenderable | null>(null);
   const lastInputValueRef = useRef("");
   const lastCtrlCRef = useRef(0);
   const lastEscRef = useRef(0);
@@ -634,6 +610,8 @@ export function OpenTuiApp({
   const voiceStatusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const voiceSegmentsRef = useRef<string[]>([]);
   const voiceTranscribingRef = useRef(false);
+  const voiceTranscriptionCountRef = useRef(0);
+  const voiceTranscriptionQueueRef = useRef(Promise.resolve());
   const voiceConfirmAfterTranscriptionRef = useRef(false);
   const voiceRewritingRef = useRef(false);
   const lastVoiceMutationRef = useRef<VoiceMutation | null>(null);
@@ -643,27 +621,18 @@ export function OpenTuiApp({
   // input/prompt-history.ts. The app-level key handler only decides whether an
   // ↑/↓ key is at the absolute composer boundary or should be normal cursor
   // movement within the current recalled/draft text.
-  const pasteCounterRef = useRef(new TurnPasteCounter());
   const imageCounterRef = useRef(0);
   const draftImagesRef = useRef(new Map<string, ProcessedImage & { id: string; index: number }>());
-  const maybeCollapseLargePasteRef = useRef<(previousValue: string, nextValue: string) => boolean>(() => false);
   const updateInputOverlayRef = useRef<(value: string, cursorOffset: number) => void>(() => { });
-  const composerTokenVisualsRef = useRef<ComposerTokenVisuals | null>(null);
   const promptSelectResolverRef = useRef<((value: string | undefined) => void) | null>(null);
   const promptSecretResolverRef = useRef<((value: string | undefined) => void) | null>(null);
   const commandPickerResolverRef = useRef<((value: CommandPickerResult | undefined) => void) | null>(null);
   const checkboxPickerResolverRef = useRef<((value: string[] | undefined) => void) | null>(null);
-  const pickerNoteInputRef = useRef<InputRenderable | null>(null);
+  const pickerNoteInputRef = useRef<FermiInputRenderable | null>(null);
   const [pickerNoteValue, setPickerNoteValue] = useState("");
   const colors = theme.colors;
   const voiceHint = voiceEnabled ? formatVoiceHint(voiceSegments, voiceStatus) : null;
-  const composerTokenColorsRef = useRef(colors);
   const markdownStyle = theme.markdownStyle;
-  if (!composerTokenVisualsRef.current || composerTokenColorsRef.current !== colors) {
-    composerTokenColorsRef.current = colors;
-    composerTokenVisualsRef.current = createComposerTokenVisuals(colors);
-  }
-  const composerTokenVisuals = composerTokenVisualsRef.current;
 
   // Bind markdown render colors (codeBorder/codeFg/HLJS) to the live theme so
   // mode switches reflect immediately on the next markdown render.
@@ -838,6 +807,15 @@ export function OpenTuiApp({
     autoSave();
   }, [autoSave, session]);
 
+  // Silent, like cyclePermissionMode — the bottom-row label and the border
+  // tint are the feedback; no hint toast.
+  const cycleAgentMode = useCallback(() => {
+    if (typeof session.setMode !== "function") return;
+    const next = nextAgentMode(coerceAgentMode(session.mode ?? "default"), 1);
+    session.setMode(next);
+    setAgentModeState(next);
+  }, [session]);
+
   const getAskQuestions = useCallback((): AgentQuestionItem[] => {
     if (!pendingAsk || pendingAsk.kind !== "agent_question") return [];
     return (pendingAsk.payload["questions"] as AgentQuestionItem[]) ?? [];
@@ -995,6 +973,8 @@ export function OpenTuiApp({
       // appear in snapshots. No need for frozenChildView protection here.
       setPendingAsk(session.getPendingAsk?.() ?? null);
       setPermissionModeState(session.permissionMode ?? "reversible");
+      setAgentModeState(session.mode ?? "default");
+      setGoalCreatedAt(session.goal?.createdAt ?? null);
       setRootLogRevision(session.getLogRevision?.() ?? 0);
       updateContextTokenState(session.lastTotalTokens, session.lastCacheReadTokens ?? 0);
     };
@@ -1084,11 +1064,11 @@ export function OpenTuiApp({
     const previousValue = lastInputValueRef.current;
     const nextValue = composer.plainText;
     if (previousValue !== nextValue) {
-      maybeCollapseLargePasteRef.current(previousValue, nextValue);
       // Prune draft images whose composer token was deleted
       if (draftImagesRef.current.size > 0) {
-        const tokens = getComposerTokenSnapshots(composer, ensureComposerTokenType(composer));
-        const liveImageIds = new Set(tokens.filter((t) => t.kind === "image" && t.imageId).map((t) => t.imageId));
+        const liveImageIds = new Set(
+          composer.tokens.filter((t) => t.kind === "image" && t.imageId).map((t) => t.imageId),
+        );
         for (const id of draftImagesRef.current.keys()) {
           if (!liveImageIds.has(id)) draftImagesRef.current.delete(id);
         }
@@ -1122,7 +1102,6 @@ export function OpenTuiApp({
   }, []);
 
   const clearInput = useCallback(() => {
-    pasteCounterRef.current.reset();
     lastInputValueRef.current = "";
     setDraftValue("");
 
@@ -1130,7 +1109,7 @@ export function OpenTuiApp({
     setCommandPicker(null);
     setCheckboxPicker(null);
     if (inputRef.current) {
-      inputRef.current.extmarks.clear();
+      inputRef.current.clearContent();
       inputRef.current.setText("");
     }
   }, []);
@@ -1368,6 +1347,22 @@ export function OpenTuiApp({
       renderer.off("selection", onSelection);
     };
   }, [copyOnSelect, renderer, flashCopyToast, showHint]);
+
+  // Self-written composer: its drag-selection is internal (model selection), so
+  // the renderer's "selection" event never fires for it. Route copy-on-select
+  // through the same /autocopy path explicitly.
+  const handleComposerSelectionCopy = useCallback((text: string) => {
+    if (!copyOnSelect || !text) return;
+    void copyToClipboard(text, (t) => renderer.copyToClipboardOSC52(t)).then((ok) => {
+      if (ok) flashCopyToast();
+      else showHint("Copy failed.");
+    });
+  }, [copyOnSelect, renderer, flashCopyToast, showHint]);
+
+  useEffect(() => {
+    const composer = inputRef.current;
+    if (composer) composer.onSelectionCopy = handleComposerSelectionCopy;
+  }, [handleComposerSelectionCopy]);
 
   // ── Background shells: stop action + picker ─────────────────────────
 
@@ -1630,48 +1625,13 @@ export function OpenTuiApp({
   updateInputOverlayRef.current = updateInputOverlay;
 
   const resetTurnPasteState = useCallback(() => {
-    pasteCounterRef.current.reset();
     imageCounterRef.current = 0;
     draftImagesRef.current.clear();
   }, []);
 
-  const maybeCollapseLargePaste = useCallback((previousValue: string, nextValue: string): boolean => {
-    const composer = inputRef.current;
-    if (!composer || suppressComposerSyncRef.current) return false;
-
-    const diff = getTextDiffRange(previousValue, nextValue);
-    if (!diff || !diff.insertedText) return false;
-
-    const decision = classifyPastedText(diff.insertedText, pasteCounterRef.current);
-    if (!decision.replacedWithPlaceholder || decision.index === undefined) return false;
-
-    suppressComposerSyncRef.current = true;
-    try {
-      replaceRangeWithComposerToken(composer, {
-        rangeStart: diff.startOffset,
-        rangeEnd: diff.endAfterOffset,
-        label: decision.text,
-        metadata: {
-          kind: "paste",
-          label: decision.text,
-          submitText: diff.insertedText,
-          index: decision.index,
-          lineCount: decision.lineCount,
-        },
-        styleId: composerTokenVisuals.pasteStyleId,
-      });
-    } finally {
-      suppressComposerSyncRef.current = false;
-    }
-
-    return true;
-  }, [composerTokenVisuals.pasteStyleId]);
-  maybeCollapseLargePasteRef.current = maybeCollapseLargePaste;
-
   useEffect(() => {
     const composer = inputRef.current;
     if (!composer) return;
-    patchComposerExtmarksForDisplayWidth(composer);
 
     const pendingTimers: ReturnType<typeof setTimeout>[] = [];
     const sync = () => {
@@ -2002,7 +1962,7 @@ export function OpenTuiApp({
   const getSerializedComposerInput = useCallback((): string => {
     const composer = inputRef.current;
     if (!composer) return draftValue;
-    return serializeComposerText(composer, ensureComposerTokenType(composer));
+    return composer.serializeSubmitText();
   }, [draftValue]);
 
   const applyVoiceComposerText = useCallback((nextText: string) => {
@@ -2016,7 +1976,8 @@ export function OpenTuiApp({
     if (!transcript) return;
     if (transcript.startsWith("file:")) {
       const filePath = transcript.slice("file:".length).trim();
-      if (resolveVoiceFileAction(voiceTranscribingRef.current, voiceRewritingRef.current) === "skip") {
+      const action = resolveVoiceFileAction(voiceTranscribingRef.current, voiceRewritingRef.current);
+      if (action === "skip") {
         unlink(filePath, () => {});
         return;
       }
@@ -2026,34 +1987,35 @@ export function OpenTuiApp({
         showVoiceStatus("缺少 voice.stt API key");
         return;
       }
+      voiceTranscriptionCountRef.current += 1;
       voiceTranscribingRef.current = true;
-      showVoiceStatus("正在转录语音...");
-      void transcribeVoiceFile({
-        filePath,
-        config: sttConfig,
-      }).then((text) => {
-        unlink(filePath, () => {});
-        voiceTranscribingRef.current = false;
-        const cleanText = cleanVoiceTranscript(text);
-        if (!cleanText) {
-          showVoiceStatus("未听清，继续说或按 Enter 确认");
-          return;
+      showVoiceStatus(action === "queue" ? "语音已排队等待转录..." : "正在转录语音...");
+      const transcribe = async () => {
+        showVoiceStatus("正在转录语音...");
+        try {
+          const text = await transcribeVoiceFile({ filePath, config: sttConfig });
+          const cleanText = cleanVoiceTranscript(text);
+          if (!cleanText) {
+            showVoiceStatus("未听清，继续说或按 Enter 确认");
+          } else if (isVoiceNoiseTranscript(cleanText)) {
+            showVoiceStatus("忽略噪声，继续说或按 Enter 确认");
+          } else {
+            showVoiceStatus(`听到: ${cleanText.slice(0, 60)}`);
+            handleVoiceTranscript(cleanText);
+          }
+        } catch (err) {
+          showVoiceStatus(`转录失败: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          unlink(filePath, () => {});
+          voiceTranscriptionCountRef.current -= 1;
+          voiceTranscribingRef.current = voiceTranscriptionCountRef.current > 0;
+          if (!voiceTranscribingRef.current && voiceConfirmAfterTranscriptionRef.current) {
+            voiceConfirmAfterTranscriptionRef.current = false;
+            handleVoiceTranscript("确认");
+          }
         }
-        if (isVoiceNoiseTranscript(cleanText)) {
-          showVoiceStatus("忽略噪声，继续说或按 Enter 确认");
-          return;
-        }
-        showVoiceStatus(`听到: ${cleanText.slice(0, 60)}`);
-        handleVoiceTranscript(cleanText);
-        if (voiceConfirmAfterTranscriptionRef.current) {
-          voiceConfirmAfterTranscriptionRef.current = false;
-          handleVoiceTranscript("确认");
-        }
-      }).catch((err) => {
-        unlink(filePath, () => {});
-        voiceTranscribingRef.current = false;
-        showVoiceStatus(`转录失败: ${err instanceof Error ? err.message : String(err)}`);
-      });
+      };
+      voiceTranscriptionQueueRef.current = voiceTranscriptionQueueRef.current.then(transcribe, transcribe);
       return;
     }
 
@@ -2239,7 +2201,7 @@ export function OpenTuiApp({
       if (command?.options && startCommandPicker(input)) {
         appendPromptHistory(input);
         if (inputRef.current) {
-          inputRef.current.extmarks.clear();
+          inputRef.current.clearContent();
           inputRef.current.setText("");
         }
         resetTurnPasteState();
@@ -2387,17 +2349,13 @@ export function OpenTuiApp({
       const label = buildFileReferenceLabel(selectedValue);
       suppressComposerSyncRef.current = true;
       try {
-        replaceRangeWithComposerToken(composer, {
+        composer.replaceRangeWithToken({
           rangeStart: query.startOffset,
           rangeEnd: query.endOffset,
           label,
-          metadata: {
-            kind: "file",
-            label,
-            submitText: label,
-            path: selectedValue,
-          },
-          styleId: composerTokenVisuals.fileStyleId,
+          submitText: label,
+          kind: "file",
+          path: selectedValue,
           trailingText: " ",
         });
       } finally {
@@ -2414,7 +2372,7 @@ export function OpenTuiApp({
     if (command?.options && startCommandPicker(selectedValue)) {
       if (inputRef.current) {
         inputRef.current.setText("");
-        inputRef.current.extmarks.clear();
+        inputRef.current.clearContent();
       }
       resetTurnPasteState();
       lastInputValueRef.current = "";
@@ -2427,7 +2385,6 @@ export function OpenTuiApp({
   }, [
     commandOverlay,
     commandRegistry,
-    composerTokenVisuals.fileStyleId,
     handleSubmit,
     resetTurnPasteState,
     startCommandPicker,
@@ -2539,7 +2496,7 @@ export function OpenTuiApp({
     if (command?.options && startCommandPicker(selectedValue)) {
       if (inputRef.current) {
         inputRef.current.setText("");
-        inputRef.current.extmarks.clear();
+        inputRef.current.clearContent();
       }
       resetTurnPasteState();
       lastInputValueRef.current = "";
@@ -2576,51 +2533,18 @@ export function OpenTuiApp({
   const deleteToVisualLineStart = useCallback(() => {
     const composer = inputRef.current;
     if (!composer) return;
-
-    if (composer.hasSelection()) {
-      composer.deleteCharBackward();
-      syncComposerState();
-      return;
-    }
-
-    const cursor = composer.editorView.getCursor();
-    const visualStart = composer.editorView.getVisualSOL();
-    const action = getDeleteToVisualLineStartAction(cursor, visualStart);
-
-    if (action === "noop") {
-      return;
-    }
-
-    if (action === "delete-to-line-start") {
-      composer.deleteToLineStart();
-      syncComposerState();
-      return;
-    }
-
-    composer.gotoVisualLineHome({ select: true });
-    if (composer.hasSelection()) {
-      composer.deleteCharBackward();
-    }
+    // The composer owns the full visual-line-start decision table (wrapped
+    // rows, col-0 join, preserve-empty-last-line) in its renderable.
+    composer.deleteToVisualLineStart();
     syncComposerState();
   }, [syncComposerState]);
 
   const isAtFirstVisualLine = useCallback((): boolean => {
-    const composer = inputRef.current;
-    if (!composer) return false;
-    const visualStart = composer.editorView.getVisualSOL();
-    return visualStart.logicalRow === 0 && visualStart.logicalCol === 0;
+    return inputRef.current?.isAtFirstVisualLine() ?? false;
   }, []);
 
   const isAtLastVisualLine = useCallback((): boolean => {
-    const composer = inputRef.current;
-    if (!composer) return false;
-    const lineCount = composer.lineCount || composer.editBuffer.getLineCount();
-    const visualEnd = composer.editorView.getVisualEOL();
-    const logicalEnd = composer.editBuffer.getEOL();
-    return (
-      visualEnd.logicalRow === Math.max(0, lineCount - 1) &&
-      visualEnd.logicalCol === logicalEnd.col
-    );
+    return inputRef.current?.isAtLastVisualLine() ?? false;
   }, []);
 
   const moveComposerVertically = useCallback((direction: "up" | "down") => {
@@ -3245,18 +3169,13 @@ export function OpenTuiApp({
           if (cmp) {
             suppressComposerSyncRef.current = true;
             try {
-              replaceRangeWithComposerToken(cmp, {
+              cmp.replaceRangeWithToken({
                 rangeStart: cmp.cursorOffset,
                 rangeEnd: cmp.cursorOffset,
                 label,
-                metadata: {
-                  kind: "image",
-                  label,
-                  submitText: label,
-                  imageId,
-                  index: idx,
-                },
-                styleId: composerTokenVisuals.imageStyleId,
+                submitText: label,
+                kind: "image",
+                imageId,
                 trailingText: " ",
               });
             } finally {
@@ -3482,6 +3401,29 @@ export function OpenTuiApp({
       }
     }
 
+    // Tab: cycle agent mode (default → vibe → scale → auto).
+    // Shift+Tab: cycle permission mode (read_only → reversible → yolo).
+    // Guarded against every overlay explicitly — some overlay blocks above
+    // fall through for Tab variants they don't handle (e.g. Shift+Tab in the
+    // command picker), and those must not leak into a cycle. Both are silent:
+    // the bottom-row labels are the feedback. The prompt-side mode switch
+    // settles at the next send.
+    if (
+      event.name === "tab" &&
+      activeTabId === "main" &&
+      !commandPicker && !checkboxPicker && !commandOverlay.visible &&
+      !promptSelect && !promptSecret && !pendingAsk
+    ) {
+      if (event.shift) {
+        cyclePermissionMode();
+      } else {
+        cycleAgentMode();
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (!composer || pendingAsk) return;
 
     if (isDeleteToVisualLineStartShortcut(event)) {
@@ -3504,7 +3446,7 @@ export function OpenTuiApp({
       const restored = session.restoreQueuedUserInput?.() ?? null;
       queuedInputsRef.current = projectQueuedInputs([...(session.log ?? [])]);
       if (restored !== null) {
-        composer.extmarks.clear();
+        composer.clearContent();
         composer.setText(restored);
         composer.cursorOffset = displayWidthWithNewlines(restored);
         syncComposerState();
@@ -3523,7 +3465,7 @@ export function OpenTuiApp({
     // entries keep the current history position but are dropped on the next
     // history navigation.
     const applyRecall = (recalled: string, cursor: number): void => {
-      composer.extmarks.clear();
+      composer.clearContent();
       composer.setText(recalled);
       composer.cursorOffset = cursor;
       syncComposerState();
@@ -3716,6 +3658,10 @@ export function OpenTuiApp({
       cacheReadTokens={effectiveCacheReadTokens}
       usageText={usageText}
       permissionMode={permissionModeState}
+      agentMode={agentModeState}
+      onModeClick={cycleAgentMode}
+      goalCreatedAt={goalCreatedAt}
+      onGoalClick={() => { void handleSubmit("/goal"); }}
       presentationEntries={effectiveEntries}
       processing={effectiveProcessing}
       markdownMode={markdownMode}
@@ -3766,8 +3712,6 @@ export function OpenTuiApp({
       modelColor={effectiveModelColor}
       turnElapsed={effectiveElapsed}
       hint={voiceHint ?? hint}
-      composerTokenVisuals={composerTokenVisuals}
-      keyBindings={COMPOSER_KEY_BINDINGS}
       onSubmit={() => {
         if (selectedChildId) {
           showHint("Return to the primary session to send messages.");
