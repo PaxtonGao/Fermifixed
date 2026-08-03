@@ -785,7 +785,7 @@ function parseModelArgs(args: string): { target: string } {
   if (rest.length > 0) {
     throw new Error(
       "Invalid /model arguments.\n" +
-      "Use a config name or provider:model (for example `openai:gpt-5.4`).",
+      "Use a config name or provider:model (for example `openai:gpt-5.6-terra`).",
     );
   }
   return { target };

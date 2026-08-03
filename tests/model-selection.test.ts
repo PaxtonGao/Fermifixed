@@ -7,7 +7,7 @@ import {
   runtimeModelName,
 } from "../src/model-selection.js";
 
-function makeSession(provider = "openai-codex", model = "gpt-5.4"): any {
+function makeSession(provider = "openai-codex", model = "gpt-5.6-terra"): any {
   return {
     config: new Config({}),
     primaryAgent: {
@@ -27,17 +27,17 @@ describe("runtime model resolution", () => {
 
     const resolved = resolveModelTierEntry(session, {
       provider: "openai-codex",
-      selection_key: "gpt-5.4-mini",
-      model_id: "gpt-5.4-mini",
+      selection_key: "gpt-5.6-luna",
+      model_id: "gpt-5.6-luna",
       thinking_level: "xhigh",
     });
 
-    expect(resolved.selectedConfigName).toBe("runtime-openai-codex-gpt-5-4-mini");
+    expect(resolved.selectedConfigName).toBe("runtime-openai-codex-gpt-5-6-luna");
     expect(resolved.thinkingLevel).toBe("xhigh");
     expect(resolved.modelConfig).toMatchObject({
-      name: "runtime-openai-codex-gpt-5-4-mini",
+      name: "runtime-openai-codex-gpt-5-6-luna",
       provider: "openai-codex",
-      model: "gpt-5.4-mini",
+      model: "gpt-5.6-luna",
     });
     expect(typeof resolved.modelConfig.apiKey).toBe("string");
     expect(resolved.modelConfig.apiKey.length).toBeGreaterThan(0);
@@ -48,15 +48,15 @@ describe("runtime model resolution", () => {
 
     const resolved = resolveAgentModelEntry(session, {
       provider: "openai-codex",
-      selection_key: "gpt-5.3-codex",
-      model_id: "gpt-5.3-codex",
+      selection_key: "gpt-5.6-sol",
+      model_id: "gpt-5.6-sol",
       thinking_level: "high",
     });
 
-    expect(resolved.selectedConfigName).toBe("runtime-openai-codex-gpt-5-3-codex");
+    expect(resolved.selectedConfigName).toBe("runtime-openai-codex-gpt-5-6-sol");
     expect(resolved.modelConfig).toMatchObject({
       provider: "openai-codex",
-      model: "gpt-5.3-codex",
+      model: "gpt-5.6-sol",
     });
     expect(typeof resolved.modelConfig.apiKey).toBe("string");
     expect(resolved.modelConfig.apiKey.length).toBeGreaterThan(0);

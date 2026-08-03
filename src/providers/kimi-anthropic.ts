@@ -10,7 +10,8 @@
  * cache — `cache_control` markers are unnecessary. `thinking.signature` is
  * absent (open-source model) so we do not round-trip it.
  *
- * Vendor quirks: K2.5 thinking requires temperature=1.
+ * Vendor quirks: K2.5/K2.6 thinking requires temperature=1; K3 uses
+ * adaptive thinking with an effort level and rejects sampling parameters.
  */
 
 import type { ModelConfig } from "../config.js";
@@ -20,6 +21,10 @@ import { BaseAnthropicProvider } from "./anthropic-base.js";
 import type { SendMessageOptions } from "./base.js";
 
 export class KimiAnthropicProvider extends BaseAnthropicProvider {
+  private static readonly _K3_MODEL_RE = /^(?:kimi-k3|k3)(?:$|[.-])/;
+  private static readonly _NO_SAMPLING_PARAMS_RE = /^(?:kimi-k2\.7-code|kimi-k3|k3)(?:$|[.-])/;
+  private static readonly _THINKING_TEMPERATURE_RE = /^kimi-k2\.[56](?:$|[.-])/;
+
   constructor(config: ModelConfig) {
     super(config);
   }
@@ -58,8 +63,13 @@ export class KimiAnthropicProvider extends BaseAnthropicProvider {
     kwargs: Record<string, unknown>,
     options?: SendMessageOptions,
   ): void {
+    if (KimiAnthropicProvider._NO_SAMPLING_PARAMS_RE.test(this._config.model)) return;
     const thinkingOff = options?.thinkingLevel === "off" || options?.thinkingLevel === "none";
-    if (this._config.supportsThinking && !thinkingOff) {
+    if (
+      this._config.supportsThinking
+      && !thinkingOff
+      && KimiAnthropicProvider._THINKING_TEMPERATURE_RE.test(this._config.model)
+    ) {
       // Kimi K2.5/K2.6 thinking mode requires temperature=1.
       kwargs["temperature"] = 1;
       return;
@@ -68,5 +78,26 @@ export class KimiAnthropicProvider extends BaseAnthropicProvider {
     if (t !== undefined) {
       kwargs["temperature"] = t;
     }
+  }
+
+  protected override _applyThinkingParams(
+    kwargs: Record<string, unknown>,
+    options?: SendMessageOptions,
+  ): void {
+    if (!KimiAnthropicProvider._K3_MODEL_RE.test(this._config.model)) {
+      super._applyThinkingParams(kwargs, options);
+      return;
+    }
+    if (!this._config.supportsThinking) return;
+
+    const level = options?.thinkingLevel;
+    if (level === "off" || level === "none") {
+      kwargs["thinking"] = { type: "disabled" };
+      return;
+    }
+
+    const effort = level === "low" || level === "high" || level === "max" ? level : "high";
+    kwargs["thinking"] = { type: "adaptive" };
+    kwargs["output_config"] = { effort };
   }
 }

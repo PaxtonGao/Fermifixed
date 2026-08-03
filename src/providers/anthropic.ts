@@ -5,8 +5,8 @@
  *   - thinking.signature round-trip (closed-source: integrity-checked reasoning)
  *   - cache_control breakpoint placement (mandatory for prompt caching)
  *   - betas forwarding (anthropic-beta header via SDK option)
- *   - adaptive thinking for Claude 4.6 / 4.7 vs. manual budget_tokens for 4.5-
- *   - Claude 4.7 sampling lockout (no temperature / top_p / top_k)
+ *   - adaptive thinking for Claude 4.6+ vs. manual budget_tokens for 4.5-
+ *   - Claude 4.7+ sampling lockout (no temperature / top_p / top_k)
  *   - native web_search_20250305 server tool
  */
 
@@ -15,10 +15,10 @@ import type { SendMessageOptions } from "./base.js";
 
 export class AnthropicProvider extends BaseAnthropicProvider {
   /**
-   * Claude 4.6 / 4.7 use Adaptive Thinking:
+   * Claude 4.6, 4.7, and 5 use Adaptive Thinking:
    *   thinking: { type: "adaptive" }
    *   output_config: { effort: "low" | "medium" | "high" | "max" }
-   * Opus 4.7 also accepts effort "xhigh" (exclusive to 4.7).
+   * Claude 4.7 and Claude 5 also accept effort "xhigh".
    *
    * Claude 4.5 and earlier use Manual Extended Thinking:
    *   thinking: { type: "enabled", budget_tokens: N }
@@ -28,15 +28,15 @@ export class AnthropicProvider extends BaseAnthropicProvider {
    * suffixes like `-fast`) used by GitHub Copilot's model catalog.
    */
   private static readonly _ADAPTIVE_MODEL_RE =
-    /^claude-(opus|sonnet)-4[.-][67]/;
+    /^claude-(?:(?:opus|sonnet)-4[.-][67]|(?:fable|opus|sonnet)-5(?:$|[.-]))/;
 
-  /** Opus 4.7+ rejects any non-default temperature/top_p/top_k with HTTP 400. */
+  /** Claude 4.7+ rejects any non-default temperature/top_p/top_k with HTTP 400. */
   private static readonly _NO_SAMPLING_PARAMS_RE =
-    /^claude-(opus|sonnet)-4[.-]7/;
+    /^claude-(?:(?:opus|sonnet)-4[.-]7|(?:fable|opus|sonnet)-5(?:$|[.-]))/;
 
-  /** Opus 4.7 introduced the `xhigh` effort level (between high and max). */
+  /** Claude 4.7+ supports the `xhigh` effort level (between high and max). */
   private static readonly _XHIGH_EFFORT_RE =
-    /^claude-(opus|sonnet)-4[.-]7/;
+    /^claude-(?:(?:opus|sonnet)-4[.-]7|(?:fable|opus|sonnet)-5(?:$|[.-]))/;
 
   protected override _emitSignature(): boolean {
     return true;

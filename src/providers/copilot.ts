@@ -44,7 +44,7 @@ import {
  *   - Claude models → Anthropic-shaped /v1/messages
  *   - everything else (GPT/Codex, Gemini, MAI, …) → OpenAI-shaped /responses
  * A hardcoded set previously drifted from Copilot's catalog and threw
- * "Unknown Copilot model" for valid models (e.g. claude-opus-4.7, gpt-5.5).
+ * "Unknown Copilot model" for valid models (e.g. claude-opus-5, gpt-5.6-terra).
  */
 function isAnthropicShapedModel(modelId: string): boolean {
   return modelId.startsWith("claude");

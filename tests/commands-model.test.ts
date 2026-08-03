@@ -87,7 +87,7 @@ describe("/model command", () => {
           {
             name: "my-claude",
             provider: "anthropic",
-            model: "claude-sonnet-4-6",
+            model: "claude-sonnet-5",
             apiKeyRaw: "sk-anthropic",
             hasResolvedApiKey: true,
           },
@@ -96,7 +96,7 @@ describe("/model command", () => {
       primaryAgent: {
         modelConfig: {
           provider: "anthropic",
-          model: "claude-sonnet-4-6",
+          model: "claude-sonnet-5",
           apiKey: "sk-anthropic",
         },
       },
@@ -113,10 +113,12 @@ describe("/model command", () => {
     expect(kimiGlobal).toBeTruthy();
     expect(openai).toBeTruthy();
     expect(anthropic!.children?.some((c) => c.label.includes("Claude Haiku 4.5"))).toBe(true);
-    expect(anthropic!.children?.some((c) => c.label.includes("Claude Sonnet 4.6  (current)"))).toBe(true);
-    expect(anthropic!.children?.some((c) => c.label.includes("Claude Sonnet 4.6  (1M context beta)"))).toBe(true);
+    expect(anthropic!.children?.some((c) => c.label.includes("Claude Fable 5"))).toBe(true);
+    expect(anthropic!.children?.some((c) => c.label.includes("Claude Sonnet 5  (current)"))).toBe(true);
+    expect(anthropic!.children?.some((c) => c.label.includes("Claude Opus 5"))).toBe(true);
+    expect(anthropic!.children?.some((c) => c.label.includes("Claude Sonnet 4.6"))).toBe(false);
     expect(
-      openai!.children?.some((c) => c.label.includes("GPT-5.2  (key missing: run fermi init)")),
+      openai!.children?.some((c) => c.label.includes("GPT-5.6 Sol  (key missing: run fermi init)")),
     ).toBe(true);
     const qwenChina = qwenGroup!.children?.find((o) => o.value === "qwen");
     const qwenIntl = qwenGroup!.children?.find((o) => o.value === "qwen-intl");
@@ -124,15 +126,15 @@ describe("/model command", () => {
     expect(qwenChina?.label).toBe("Qwen China");
     expect(qwenIntl?.label).toBe("Qwen Intl");
     expect(qwenUs?.label).toBe("Qwen US");
-    expect(qwenChina!.children?.some((c) => c.label.includes("Qwen3.6 Plus"))).toBe(true);
+    expect(qwenChina!.children?.some((c) => c.label.includes("Qwen3.7 Flash"))).toBe(true);
     expect(qwenChina!.children?.some((c) => c.label.includes("Qwen3.7 Max"))).toBe(true);
+    expect(qwenChina!.children?.some((c) => c.label.includes("Qwen3.6"))).toBe(false);
     expect(openai!.children?.some((c) => c.label.includes("gpt-5.1"))).toBe(false);
     expect(openai!.children?.some((c) => c.label.includes("gpt-4o"))).toBe(false);
-    expect(openai!.children?.some((c) => c.label.includes("GPT-5.4"))).toBe(true);
-    expect(openai!.children?.some((c) => c.label.includes("GPT-5.4 Mini"))).toBe(true);
-    expect(openai!.children?.some((c) => c.label.includes("GPT-5.4 Nano"))).toBe(true);
-    expect(openai!.children?.some((c) => c.label.includes("GPT-5.2 Codex"))).toBe(true);
-    expect(openai!.children?.some((c) => c.label.includes("GPT-5.3 Codex"))).toBe(true);
+    expect(openai!.children?.some((c) => c.label.includes("GPT-5.6 Sol"))).toBe(true);
+    expect(openai!.children?.some((c) => c.label.includes("GPT-5.6 Terra"))).toBe(true);
+    expect(openai!.children?.some((c) => c.label.includes("GPT-5.6 Luna"))).toBe(true);
+    expect(openai!.children?.some((c) => c.label.includes("GPT-5.5"))).toBe(false);
   });
 
   it("tracks managed provider keys per exact endpoint instead of sharing them across a group", () => {
@@ -200,29 +202,36 @@ describe("/model command", () => {
 
     expect(vendorAnthro).toBeTruthy();
     expect(vendorAnthro!.label).toBe("Anthropic");
-    expect(vendorAnthro!.children?.some((c) => c.label.startsWith("Claude Haiku 4.5"))).toBe(true);
-    expect(vendorAnthro!.children?.some((c) => c.label.includes("Claude Sonnet 4.6  (1M context)"))).toBe(true);
+    expect(vendorAnthro!.children?.some((c) => c.label.startsWith("Claude Fable 5"))).toBe(true);
+    expect(vendorAnthro!.children?.some((c) => c.label.startsWith("Claude Sonnet 5"))).toBe(true);
+    expect(vendorAnthro!.children?.some((c) => c.label.includes("Claude Sonnet 4.6"))).toBe(false);
 
     expect(vendorOpenAI).toBeTruthy();
     expect(vendorOpenAI!.label).toBe("OpenAI");
-    expect(vendorOpenAI!.children?.some((c) => c.label.startsWith("GPT-5.4"))).toBe(true);
-    expect(vendorOpenAI!.children?.some((c) => c.label.startsWith("GPT-5.3 Codex"))).toBe(true);
+    expect(vendorOpenAI!.children?.some((c) => c.label.startsWith("GPT-5.6 Sol"))).toBe(true);
+    expect(vendorOpenAI!.children?.some((c) => c.label.startsWith("GPT-5.6 Terra"))).toBe(true);
+    expect(vendorOpenAI!.children?.some((c) => c.label.includes("GPT-5.5"))).toBe(false);
 
     expect(vendorQwen).toBeTruthy();
     expect(vendorQwen!.label).toBe("Qwen");
-    expect(vendorQwen!.children?.some((c) => c.label.startsWith("Qwen3.6 Plus"))).toBe(true);
+    expect(vendorQwen!.children?.some((c) => c.label.startsWith("Qwen3.7 Flash"))).toBe(true);
     expect(vendorQwen!.children?.some((c) => c.label.startsWith("Qwen3.7 Max"))).toBe(true);
+    expect(vendorQwen!.children?.some((c) => c.label.includes("Qwen3.6"))).toBe(false);
 
     expect(vendorKimi).toBeTruthy();
     expect(vendorKimi!.label).toBe("Kimi");
-    expect(vendorKimi!.children?.some((c) => c.label.startsWith("Kimi K2.5"))).toBe(true);
+    expect(vendorKimi!.children?.some((c) => c.label.startsWith("Kimi K3"))).toBe(true);
+    expect(vendorKimi!.children?.some((c) => c.label.includes("Kimi K2.5"))).toBe(false);
 
     expect(vendorMiniMax).toBeTruthy();
     expect(vendorMiniMax!.label).toBe("MiniMax");
-    expect(vendorMiniMax!.children?.some((c) => c.label.startsWith("MiniMax M2.5"))).toBe(true);
+    expect(vendorMiniMax!.children?.some((c) => c.label.startsWith("MiniMax M3"))).toBe(true);
+    expect(vendorMiniMax!.children?.some((c) => c.label.includes("MiniMax M2.5"))).toBe(false);
 
     expect(vendorGLM).toBeTruthy();
     expect(vendorGLM!.label).toBe("GLM / Zhipu");
+    expect(vendorGLM!.children?.some((c) => c.label.startsWith("GLM-5.2"))).toBe(true);
+    expect(vendorGLM!.children?.some((c) => c.label.includes("GLM-5.1"))).toBe(false);
   });
 
   it("blocks switching to provider:model when provider API key is missing", async () => {
@@ -256,7 +265,7 @@ describe("/model command", () => {
     };
 
     const ctx = makeContext(registry, session);
-    await cmd!.handler(ctx, "openai:gpt-5.4");
+    await cmd!.handler(ctx, "openai:gpt-5.6-sol");
 
     const rendered = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0]?.[0] as string;
     expect(rendered).toContain("Missing API key for provider 'openai'");
@@ -290,8 +299,8 @@ describe("/model command", () => {
           (session.primaryAgent as any).modelConfig = {
             name,
             provider: "glm-code",
-            model: "glm-5",
-            contextLength: 200000,
+            model: "glm-5.2",
+            contextLength: 1_000_000,
             apiKey: "glm-code-detected",
           };
         },
@@ -313,7 +322,7 @@ describe("/model command", () => {
         promptSecret,
       };
 
-      await cmd!.handler(ctx, "glm-code:glm-5");
+      await cmd!.handler(ctx, "glm-code:glm-5.2");
 
       expect(promptSelect).toHaveBeenCalledTimes(1);
       expect(promptSecret).not.toHaveBeenCalled();
@@ -322,14 +331,14 @@ describe("/model command", () => {
         "FERMI_GLM_CODE_API_KEY=glm-code-detected",
       );
       expect(upsertModelRaw).toHaveBeenCalledWith(
-        "runtime-glm-code-glm-5",
+        "runtime-glm-code-glm-5-2",
         expect.objectContaining({
           provider: "glm-code",
-          model: "glm-5",
+          model: "glm-5.2",
           api_key: "${FERMI_GLM_CODE_API_KEY}",
         }),
       );
-      expect(switchModel).toHaveBeenCalledWith("runtime-glm-code-glm-5");
+      expect(switchModel).toHaveBeenCalledWith("runtime-glm-code-glm-5-2");
       expect(resetForNewSession).not.toHaveBeenCalled();
     } finally {
       rmSync(tempHome, { recursive: true, force: true });
@@ -355,8 +364,8 @@ describe("/model command", () => {
         (session.primaryAgent as any).modelConfig = {
           name,
           provider: "openai",
-          model: "gpt-5.2-codex",
-          contextLength: 400000,
+          model: "gpt-5.6-terra",
+          contextLength: 1_050_000,
           apiKey: "sk-inline",
         };
       },
@@ -373,7 +382,7 @@ describe("/model command", () => {
     };
 
     const ctx = makeContext(registry, session);
-    await cmd!.handler(ctx, "openai:gpt-5.2-codex key=sk-inline");
+    await cmd!.handler(ctx, "openai:gpt-5.6-terra key=sk-inline");
 
     const rendered = (ctx.showMessage as ReturnType<typeof mock>).mock.calls[0]?.[0] as string;
     expect(rendered).toContain("Inline API keys in `/model` are no longer supported.");
@@ -418,18 +427,18 @@ describe("/model command", () => {
           (session.primaryAgent as any).modelConfig = {
             name,
             provider: "glm-code",
-            model: "glm-5",
-            contextLength: 200000,
+            model: "glm-5.2",
+            contextLength: 1_000_000,
             apiKey: "glm-test-key",
           };
         },
         setPersistedModelSelection: mock(),
         getGlobalPreferences: () => ({
           version: 1,
-          modelConfigName: "runtime-glm-code-glm-5",
+          modelConfigName: "runtime-glm-code-glm-5-2",
           modelProvider: "glm-code",
-          modelSelectionKey: "glm-5",
-          modelId: "glm-5",
+          modelSelectionKey: "glm-5.2",
+          modelId: "glm-5.2",
           thinkingLevel: "default",
         }),
         resetForNewSession,
@@ -451,7 +460,7 @@ describe("/model command", () => {
         },
       };
 
-      await cmd!.handler(ctx, "glm-code:glm-5");
+      await cmd!.handler(ctx, "glm-code:glm-5.2");
 
       const persistedSettings = JSON.parse(readFileSync(join(fermiHome, "settings.json"), "utf-8"));
       expect(persistedSettings).toEqual({
@@ -470,10 +479,10 @@ describe("/model command", () => {
         readFileSync(join(fermiHome, "state", "model-selection.json"), "utf-8"),
       );
       expect(persistedState).toEqual({
-        config_name: "runtime-glm-code-glm-5",
+        config_name: "runtime-glm-code-glm-5-2",
         provider: "glm-code",
-        selection_key: "glm-5",
-        model_id: "glm-5",
+        selection_key: "glm-5.2",
+        model_id: "glm-5.2",
         thinking_level: "default",
       });
     } finally {
@@ -481,7 +490,7 @@ describe("/model command", () => {
     }
   });
 
-  it("preserves preset-specific overrides for Anthropic 1M variants", async () => {
+  it("registers current Anthropic presets without retired beta overrides", async () => {
     process.env["ANTHROPIC_API_KEY"] = "sk-anthropic";
     const registry = buildDefaultRegistry();
     const cmd = registry.lookup("/model");
@@ -501,7 +510,7 @@ describe("/model command", () => {
         (session.primaryAgent as any).modelConfig = {
           name,
           provider: "anthropic",
-          model: "claude-sonnet-4-6",
+          model: "claude-sonnet-5",
           contextLength: 1_000_000,
           apiKey: "sk-inline",
         };
@@ -511,7 +520,7 @@ describe("/model command", () => {
         modelConfig: {
           name: "my-openai",
           provider: "openai",
-          model: "gpt-5.2",
+          model: "gpt-5.6-sol",
           contextLength: 400000,
           apiKey: "sk-openai",
         },
@@ -519,19 +528,17 @@ describe("/model command", () => {
     };
 
       const ctx = makeContext(registry, session);
-    await cmd!.handler(ctx, "anthropic:claude-sonnet-4-6-1m");
+    await cmd!.handler(ctx, "anthropic:claude-sonnet-5");
 
     expect(upsertModelRaw).toHaveBeenCalledWith(
-      "runtime-anthropic-claude-sonnet-4-6-1m",
+      "runtime-anthropic-claude-sonnet-5",
       expect.objectContaining({
         provider: "anthropic",
-        model: "claude-sonnet-4-6",
+        model: "claude-sonnet-5",
         api_key: "${ANTHROPIC_API_KEY}",
-        context_length: 1_000_000,
-        betas: ["context-1m-2025-08-07"],
       }),
     );
-    expect(switchModel).toHaveBeenCalledWith("runtime-anthropic-claude-sonnet-4-6-1m");
+    expect(switchModel).toHaveBeenCalledWith("runtime-anthropic-claude-sonnet-5");
     expect(resetForNewSession).not.toHaveBeenCalled();
   });
 
@@ -550,7 +557,7 @@ describe("/model command", () => {
           {
             name: "my-openai",
             provider: "openai",
-            model: "gpt-5.2",
+            model: "gpt-5.6-sol",
             apiKeyRaw: "${OPENAI_API_KEY}",
             hasResolvedApiKey: true,
           },
@@ -562,8 +569,8 @@ describe("/model command", () => {
         (session.primaryAgent as any).modelConfig = {
           name,
           provider: "openai",
-          model: "gpt-5.2-codex",
-          contextLength: 400000,
+          model: "gpt-5.6-terra",
+          contextLength: 1_050_000,
           apiKey: "sk-openai",
         };
       },
@@ -572,7 +579,7 @@ describe("/model command", () => {
         modelConfig: {
           name: "my-openai",
           provider: "openai",
-          model: "gpt-5.2",
+          model: "gpt-5.6-sol",
           contextLength: 400000,
           apiKey: "sk-openai",
         },
@@ -580,21 +587,21 @@ describe("/model command", () => {
     };
 
     const ctx = makeContext(registry, session);
-    await cmd!.handler(ctx, "openai:gpt-5.2-codex");
+    await cmd!.handler(ctx, "openai:gpt-5.6-terra");
 
     expect(upsertModelRaw).toHaveBeenCalledWith(
-      "runtime-openai-gpt-5-2-codex",
+      "runtime-openai-gpt-5-6-terra",
       expect.objectContaining({
         provider: "openai",
-        model: "gpt-5.2-codex",
+        model: "gpt-5.6-terra",
         api_key: "${OPENAI_API_KEY}",
       }),
     );
-    expect(switchModel).toHaveBeenCalledWith("runtime-openai-gpt-5-2-codex");
+    expect(switchModel).toHaveBeenCalledWith("runtime-openai-gpt-5-6-terra");
     expect(resetForNewSession).not.toHaveBeenCalled();
   });
 
-  it("maps OpenRouter Anthropic aliases to the official 1M preset config", async () => {
+  it("maps the current OpenRouter Claude model to its registry spec", async () => {
     process.env["OPENROUTER_API_KEY"] = "sk-openrouter";
     const registry = buildDefaultRegistry();
     const cmd = registry.lookup("/model");
@@ -614,7 +621,7 @@ describe("/model command", () => {
         (session.primaryAgent as any).modelConfig = {
           name,
           provider: "openrouter",
-          model: "anthropic/claude-sonnet-4.6",
+          model: "anthropic/claude-sonnet-5",
           contextLength: 1_000_000,
           apiKey: "sk-inline",
         };
@@ -632,18 +639,17 @@ describe("/model command", () => {
     };
 
     const ctx = makeContext(registry, session);
-    await cmd!.handler(ctx, "openrouter:anthropic/claude-sonnet-4-6");
+    await cmd!.handler(ctx, "openrouter:anthropic/claude-sonnet-5");
 
     expect(upsertModelRaw).toHaveBeenCalledWith(
-      "runtime-openrouter-anthropic-claude-sonnet-4-6",
+      "runtime-openrouter-anthropic-claude-sonnet-5",
       expect.objectContaining({
         provider: "openrouter",
-        model: "anthropic/claude-sonnet-4.6",
+        model: "anthropic/claude-sonnet-5",
         api_key: "${OPENROUTER_API_KEY}",
-        context_length: 1_000_000,
       }),
     );
-    expect(switchModel).toHaveBeenCalledWith("runtime-openrouter-anthropic-claude-sonnet-4-6");
+    expect(switchModel).toHaveBeenCalledWith("runtime-openrouter-anthropic-claude-sonnet-5");
     expect(resetForNewSession).not.toHaveBeenCalled();
   });
 });

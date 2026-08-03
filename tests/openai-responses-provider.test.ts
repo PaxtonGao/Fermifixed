@@ -83,14 +83,11 @@ async function captureRequestKwargs(model: string): Promise<Record<string, unkno
 
 describe("OpenAIResponsesProvider temperature support", () => {
   it.each([
-    "gpt-5.2",
-    "gpt-5.2-codex",
-    "gpt-5.3-codex",
-    "gpt-5.4",
-    "gpt-5.4-mini",
-    "gpt-5.4-nano",
-    "openai/gpt-5.4",
-    "openai/gpt-5.4-mini",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "openai/gpt-5.6-sol",
+    "openai/gpt-5.6-terra",
   ])("omits temperature for %s", async (model) => {
     const kwargs = await captureRequestKwargs(model);
     expect(kwargs["temperature"]).toBeUndefined();
@@ -107,7 +104,7 @@ describe("OpenAIResponsesProvider openai-codex request shaping", () => {
     const { body, requestOptions } = await captureCreateCall(
       {
         provider: "openai-codex",
-        model: "gpt-5.4-mini",
+        model: "gpt-5.6-terra",
         extra: { store: false, include: ["foo"] },
       },
       [{ role: "user", content: "hi" }],

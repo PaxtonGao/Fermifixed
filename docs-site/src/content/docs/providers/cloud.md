@@ -6,7 +6,7 @@ This page covers setup for cloud-based API providers. For GitHub Copilot, see [G
 
 ## Anthropic
 
-**Models:** Claude Haiku 4.5, Sonnet 4.6, Sonnet 4.6 (1M context), Opus 4.6, Opus 4.6 (1M context), Opus 4.7
+**Models:** Claude Haiku 4.5, Claude Fable 5, Claude Sonnet 5, Claude Opus 5
 
 1. Get an API key from [console.anthropic.com](https://console.anthropic.com/).
 2. Run `fermi init` and select **Anthropic (Claude)**.
@@ -14,15 +14,11 @@ This page covers setup for cloud-based API providers. For GitHub Copilot, see [G
 
 The key is stored as `ANTHROPIC_API_KEY` in `~/.fermi/.env`.
 
-### 1M Context Beta
-
-The 1M context variants of Sonnet 4.6 and Opus 4.6 appear as separate model options. These use Anthropic's extended context beta and allow up to 1,000,000 tokens of context.
-
-**Thinking levels:** Opus 4.7: off, low, medium, high, xhigh, max. Opus 4.6: off, low, medium, high, max. Sonnet/Haiku: off, low, medium, high.
+**Thinking levels:** Fable, Sonnet, and Opus 5: off, low, medium, high, xhigh, max. Haiku 4.5: off, low, medium, high.
 
 ## OpenAI
 
-**Models:** GPT-5.2, GPT-5.2 Codex, GPT-5.3 Codex, GPT-5.4, GPT-5.4 Mini, GPT-5.4 Nano, GPT-5.5
+**Models:** GPT-5.6 Sol, GPT-5.6 Terra, GPT-5.6 Luna
 
 1. Get an API key from [platform.openai.com](https://platform.openai.com/).
 2. Run `fermi init` and select **OpenAI**.
@@ -32,7 +28,7 @@ The key is stored as `OPENAI_API_KEY` in `~/.fermi/.env`.
 
 Alternatively, use your ChatGPT account via OAuth. See [ChatGPT OAuth Login](/providers/openai-oauth).
 
-**Thinking levels:** none, low, medium, high, xhigh.
+**Thinking levels:** none, low, medium, high, xhigh, max.
 
 ## DeepSeek
 
@@ -46,7 +42,7 @@ The key is stored as a managed slot in `~/.fermi/.env`.
 
 ## Kimi / Moonshot
 
-**Models:** Kimi K2.7 Code, K2.6, K2.5, K2 Instruct
+**Models:** Kimi K2.7 Code, Kimi K3
 
 Available through three endpoint variants:
 
@@ -66,7 +62,7 @@ The Kimi-Code endpoint is restricted to whitelisted agents. You may receive a 40
 
 ## GLM / Zhipu
 
-**Models:** GLM-5.1, GLM-5, GLM-5 Turbo, GLM-5V Turbo, GLM-4.7. The two coding endpoints additionally offer **GLM-5.2**.
+**Models:** GLM-5.2 across every endpoint variant.
 
 Available through four endpoint variants:
 
@@ -87,7 +83,7 @@ The GLM coding endpoints are restricted to whitelisted agents. Use `glm` or `glm
 
 ## MiniMax
 
-**Models:** MiniMax M3, M2.5, M2.5 Highspeed, M2.7, M2.7 Highspeed
+**Models:** MiniMax M3
 
 Available through two endpoint variants:
 
@@ -102,7 +98,7 @@ Available through two endpoint variants:
 
 ## Xiaomi (MiMo)
 
-**Models:** MiMo V2.5, MiMo V2.5 Pro
+**Models:** MiMo V2.5 (multimodal), MiMo V2.5 Pro (text only)
 
 1. Get an API key from Xiaomi's developer portal.
 2. Run `fermi init` and select **Xiaomi (MiMo)**.
@@ -112,7 +108,7 @@ The key is stored as a managed slot in `~/.fermi/.env`.
 
 ## Qwen / DashScope
 
-**Models:** Qwen3.6 Plus, Qwen3.7 Plus, Qwen3.7 Max
+**Models:** Qwen3.7 Flash, Qwen3.7 Plus, Qwen3.7 Max
 
 Available through three regional endpoint variants:
 

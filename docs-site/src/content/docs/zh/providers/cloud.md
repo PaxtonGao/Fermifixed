@@ -6,7 +6,7 @@ title: "云端提供商"
 
 ## Anthropic
 
-**模型：** Claude Haiku 4.5、Sonnet 4.6、Sonnet 4.6（1M 上下文）、Opus 4.6、Opus 4.6（1M 上下文）、Opus 4.7
+**模型：** Claude Haiku 4.5、Claude Fable 5、Claude Sonnet 5、Claude Opus 5
 
 1. 从 [console.anthropic.com](https://console.anthropic.com/) 获取 API key。
 2. 运行 `fermi init` 并选择 **Anthropic (Claude)**。
@@ -14,15 +14,11 @@ title: "云端提供商"
 
 key 会以 `ANTHROPIC_API_KEY` 保存到 `~/.fermi/.env`。
 
-### 1M Context Beta
-
-Sonnet 4.6 和 Opus 4.6 的 1M 上下文变体会作为独立模型选项出现。它们使用 Anthropic 的 extended context beta，允许最多 1,000,000 token 的上下文。
-
-**Thinking levels：** Opus 4.7: off, low, medium, high, xhigh, max。Opus 4.6: off, low, medium, high, max。Sonnet/Haiku: off, low, medium, high。
+**Thinking levels：** Fable、Sonnet 和 Opus 5：off、low、medium、high、xhigh、max。Haiku 4.5：off、low、medium、high。
 
 ## OpenAI
 
-**模型：** GPT-5.2、GPT-5.2 Codex、GPT-5.3 Codex、GPT-5.4、GPT-5.4 Mini、GPT-5.4 Nano、GPT-5.5
+**模型：** GPT-5.6 Sol、GPT-5.6 Terra、GPT-5.6 Luna
 
 1. 从 [platform.openai.com](https://platform.openai.com/) 获取 API key。
 2. 运行 `fermi init` 并选择 **OpenAI**。
@@ -32,7 +28,7 @@ key 会以 `OPENAI_API_KEY` 保存到 `~/.fermi/.env`。
 
 也可以通过 OAuth 使用 ChatGPT 账号。见 [ChatGPT OAuth 登录](/zh/providers/openai-oauth)。
 
-**Thinking levels：** none, low, medium, high, xhigh。
+**Thinking levels：** none、low、medium、high、xhigh、max。
 
 ## DeepSeek
 
@@ -46,7 +42,7 @@ key 会作为托管槽位保存到 `~/.fermi/.env`。
 
 ## Kimi / Moonshot
 
-**模型：** Kimi K2.7 Code、K2.6、K2.5、K2 Instruct
+**模型：** Kimi K2.7 Code、Kimi K3
 
 提供三个端点变体：
 
@@ -66,7 +62,7 @@ Kimi-Code 端点仅对白名单代理开放。你可能会收到 403 错误。�
 
 ## GLM / Zhipu
 
-**模型：** GLM-5.1、GLM-5、GLM-5 Turbo、GLM-5V Turbo、GLM-4.7。两个 coding 端点还额外提供 **GLM-5.2**。
+**模型：** 所有端点变体均为 GLM-5.2。
 
 提供四个端点变体：
 
@@ -87,7 +83,7 @@ GLM coding 端点仅对白名单代理开放。请改用 `glm` 或 `glm-intl`（
 
 ## MiniMax
 
-**模型：** MiniMax M3、M2.5、M2.5 Highspeed、M2.7、M2.7 Highspeed
+**模型：** MiniMax M3
 
 提供两个端点变体：
 
@@ -102,7 +98,7 @@ GLM coding 端点仅对白名单代理开放。请改用 `glm` 或 `glm-intl`（
 
 ## Xiaomi (MiMo)
 
-**模型：** MiMo V2.5、MiMo V2.5 Pro
+**模型：** MiMo V2.5（多模态）、MiMo V2.5 Pro（仅文本）
 
 1. 从 Xiaomi 开发者门户获取 API key。
 2. 运行 `fermi init` 并选择 **Xiaomi (MiMo)**。
@@ -112,7 +108,7 @@ key 会作为托管槽位保存到 `~/.fermi/.env`。
 
 ## Qwen / DashScope
 
-**模型：** Qwen3.6 Plus、Qwen3.7 Plus、Qwen3.7 Max
+**模型：** Qwen3.7 Flash、Qwen3.7 Plus、Qwen3.7 Max
 
 提供三个区域端点变体：
 

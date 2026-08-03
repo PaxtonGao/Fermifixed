@@ -329,7 +329,7 @@ export function resolveModelSelection(
   const parsed = parseProviderModelTarget(target);
   if (!parsed) {
     throw new Error(
-      "Invalid model target. Use config name or provider:model (e.g. openai:gpt-5.4).",
+      "Invalid model target. Use config name or provider:model (e.g. openai:gpt-5.6-terra).",
     );
   }
 

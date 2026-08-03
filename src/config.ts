@@ -153,7 +153,7 @@ export function getHighestThinkingLevel(model: string): string | undefined {
 
 /**
  * Strip the vendor prefix from an OpenRouter-style model ID.
- * e.g. "anthropic/claude-sonnet-4-6" → "claude-sonnet-4-6"
+ * e.g. "anthropic/claude-sonnet-5" → "claude-sonnet-5"
  * If the model ID contains no "/", it is returned unchanged.
  */
 export function normalizeModelId(model: string): string {

@@ -67,7 +67,7 @@ export interface RawModelRegistry {
   models: ModelSpec[];
 }
 
-export const MODEL_REGISTRY_SCHEMA_VERSION = 1;
+export const MODEL_REGISTRY_SCHEMA_VERSION = 2;
 
 const VALID_THINKING_LEVEL = /^[a-z]+$/;
 

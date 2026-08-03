@@ -30,7 +30,7 @@ GitHub token 保存在 `~/.fermi/state/oauth.json` 的 `github_copilot` 字段�
 
 ## 可用模型
 
-登录后，模型列表会从 GitHub 的 Copilot catalog（`/models`）实时获取，因此 `/model` 选择器会准确反映你的订阅可以调用的模型。新模型会自动出现，你的套餐无法使用的模型会被隐藏。典型模型包括 Claude Opus 4.8 / 4.7、Claude Sonnet 4.6，以及 GPT-5.x 系列（5.3 Codex、5.4、5.4 Mini、5.5、5 Mini）。
+登录后，模型列表会从 GitHub 的 Copilot catalog（`/models`）实时获取，因此 `/model` 选择器会准确反映你的订阅可以调用的模型。新模型会自动出现，你的套餐无法使用的模型会被隐藏。当前候选包括 Claude Fable 5、Claude Sonnet 5、Claude Opus 5，以及 GPT-5.6 Sol、Terra、Luna。
 
 ## 计费
 

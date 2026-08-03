@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
+import { MODEL_REGISTRY_SCHEMA_VERSION } from "../src/model-registry.js";
 import {
   compareVersions,
   isVersionAtLeast,
@@ -40,11 +44,11 @@ describe("semver gating compare", () => {
 describe("loadRemoteRegistry — validation + version gating", () => {
   it("drops models above app version and prunes provider refs to them", () => {
     const bundle: RawRegistryBundle = {
-      models: { schemaVersion: 1, models: [
+      models: { schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION, models: [
         model({ id: "now-model" }),
         model({ id: "future-model", minAppVersion: "99.0.0" }),
       ] },
-      providers: { schemaVersion: 1, providers: [
+      providers: { schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION, providers: [
         provider({ id: "p1", models: [{ spec: "now-model" }, { spec: "future-model" }] }),
       ] },
     };
@@ -56,8 +60,8 @@ describe("loadRemoteRegistry — validation + version gating", () => {
 
   it("drops a future provider (unknown providerClass) before it can sink the table", () => {
     const bundle: RawRegistryBundle = {
-      models: { schemaVersion: 1, models: [model({ id: "m" })] },
-      providers: { schemaVersion: 1, providers: [
+      models: { schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION, models: [model({ id: "m" })] },
+      providers: { schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION, providers: [
         provider({ id: "future-p", minAppVersion: "99.0.0", providerClass: "brand-new-class", models: [] }),
         provider({ id: "p1", models: [{ spec: "m" }] }),
       ] },
@@ -68,16 +72,16 @@ describe("loadRemoteRegistry — validation + version gating", () => {
 
   it("throws on a structurally invalid bundle (caller falls back to factory)", () => {
     const bundle: RawRegistryBundle = {
-      models: { schemaVersion: 1, models: [{ id: "bad" }] }, // missing required fields
-      providers: { schemaVersion: 1, providers: [] },
+      models: { schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION, models: [{ id: "bad" }] }, // missing required fields
+      providers: { schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION, providers: [] },
     };
     expect(() => loadRemoteRegistry(bundle, "1.0.0")).toThrow();
   });
 
   it("throws when a provider ref points at a genuinely missing spec", () => {
     const bundle: RawRegistryBundle = {
-      models: { schemaVersion: 1, models: [model({ id: "m" })] },
-      providers: { schemaVersion: 1, providers: [
+      models: { schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION, models: [model({ id: "m" })] },
+      providers: { schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION, providers: [
         provider({ id: "p1", models: [{ spec: "does-not-exist" }] }),
       ] },
     };
@@ -86,6 +90,26 @@ describe("loadRemoteRegistry — validation + version gating", () => {
 });
 
 describe("selectEffectiveRegistry", () => {
+  it("ignores a cache written by the previous registry schema", () => {
+    const home = mkdtempSync(join(tmpdir(), "fermi-registry-"));
+    const cache = join(home, "model-registry", "cache");
+    mkdirSync(cache, { recursive: true });
+    writeFileSync(join(cache, "models.json"), JSON.stringify({
+      schemaVersion: 1,
+      models: [model({ id: "old-cache-model" })],
+    }));
+    writeFileSync(join(cache, "providers.json"), JSON.stringify({
+      schemaVersion: 1,
+      providers: [provider({ id: "old-cache-provider", models: [{ spec: "old-cache-model" }] })],
+    }));
+
+    try {
+      expect(selectEffectiveRegistry(home, "1.0.0").source).toBe("factory");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   it("falls back to factory when forced or when no cache exists", () => {
     const prev = process.env.FERMI_REGISTRY_NO_REMOTE;
     process.env.FERMI_REGISTRY_NO_REMOTE = "1";

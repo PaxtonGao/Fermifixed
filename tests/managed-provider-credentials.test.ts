@@ -46,9 +46,8 @@ describe("managed provider credentials", () => {
 
     const cfg = new Config({});
 
-    expect(cfg.modelNames).toContain("glm-code:glm-5");
-    expect(cfg.modelNames).toContain("glm-code:glm-4.7");
-    expect(cfg.getModel("glm-code:glm-5").apiKey).toBe("glm-code-secret");
+    expect(cfg.modelNames).toContain("glm-code:glm-5.2");
+    expect(cfg.getModel("glm-code:glm-5.2").apiKey).toBe("glm-code-secret");
   });
 
   it("does not share managed credentials across endpoints", () => {
@@ -56,8 +55,8 @@ describe("managed provider credentials", () => {
 
     const cfg = new Config({});
 
-    expect(cfg.modelNames).toContain("glm:glm-5");
-    expect(cfg.modelNames).not.toContain("glm-code:glm-5");
+    expect(cfg.modelNames).toContain("glm:glm-5.2");
+    expect(cfg.modelNames).not.toContain("glm-code:glm-5.2");
   });
 
   it("keeps Qwen regional credentials scoped to the configured endpoint", () => {
@@ -65,11 +64,11 @@ describe("managed provider credentials", () => {
 
     const cfg = new Config({});
 
-    expect(cfg.modelNames).toContain("qwen-us:qwen3.6-plus");
+    expect(cfg.modelNames).toContain("qwen-us:qwen3.7-flash");
     expect(cfg.modelNames).toContain("qwen-us:qwen3.7-max");
-    expect(cfg.modelNames).not.toContain("qwen:qwen3.6-plus");
-    expect(cfg.modelNames).not.toContain("qwen-intl:qwen3.6-plus");
-    expect(cfg.getModel("qwen-us:qwen3.6-plus").apiKey).toBe("qwen-us-secret");
+    expect(cfg.modelNames).not.toContain("qwen:qwen3.7-flash");
+    expect(cfg.modelNames).not.toContain("qwen-intl:qwen3.7-flash");
+    expect(cfg.getModel("qwen-us:qwen3.7-flash").apiKey).toBe("qwen-us-secret");
   });
 
   it("treats external Qwen keys as import candidates, not runtime credentials", () => {
@@ -81,7 +80,7 @@ describe("managed provider credentials", () => {
 
     const cfg = new Config({});
 
-    expect(cfg.modelNames).not.toContain("qwen:qwen3.6-plus");
+    expect(cfg.modelNames).not.toContain("qwen:qwen3.7-flash");
     expect(cfg.modelNames).not.toContain("qwen:qwen3.7-max");
   });
 });

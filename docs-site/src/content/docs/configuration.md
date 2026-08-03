@@ -32,7 +32,7 @@ User-editable settings file (JSONC format). Created manually or via `-c` overrid
 {
   "context_budget_percent": 80,
   "permission_mode": "reversible",
-  "default_model": "anthropic:claude-opus-4-6",
+  "default_model": "anthropic:claude-opus-5",
   "thinking_level": "high"
 }
 ```

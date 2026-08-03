@@ -4,7 +4,7 @@
  * Copilot's /models endpoint returns, for each model, a `policy.state` field
  * that the server computes from the current user's plan and entitlements.
  * On a Copilot Pro account, models that are exclusive to Pro+ (e.g.
- * `claude-opus-4.6-fast`) come back with `policy.state: "disabled"`. On a
+ * `claude-opus-5`) come back with `policy.state: "disabled"`. On a
  * Pro+ account the same model comes back `enabled`.
  *
  * We fetch the list once on startup (and lazily on first use), cache it in
@@ -227,7 +227,7 @@ export function isModelVisibleForCurrentPlan(modelId: string): boolean {
   // Hide only models the plan explicitly disables (e.g. Pro+-exclusive models
   // on a Pro account). "enabled" and "unconfigured" are both callable —
   // "unconfigured" just means no org policy is pinned, which is the default
-  // for individual accounts (e.g. gpt-5.3-codex).
+  // for individual accounts (e.g. gpt-5.6-terra).
   return entry.policy_state !== "disabled";
 }
 

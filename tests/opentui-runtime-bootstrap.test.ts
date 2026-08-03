@@ -19,7 +19,7 @@ function writeRuntimeSettings(): void {
       providers: {
         openai: { api_key_env: TEST_KEY_ENV },
       },
-      default_model: "openai:gpt-5.4-mini",
+      default_model: "openai:gpt-5.6-terra",
       thinking_level: "high",
       permission_mode: "yolo",
       disabled_skills: ["explain-code"],

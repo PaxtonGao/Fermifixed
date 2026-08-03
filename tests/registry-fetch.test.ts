@@ -10,6 +10,7 @@ import {
   shouldRefetch,
   verifyDetachedEd25519,
 } from "../src/registry-fetch.js";
+import { MODEL_REGISTRY_SCHEMA_VERSION } from "../src/model-registry.js";
 import { selectEffectiveRegistry } from "../src/registry-effective.js";
 
 const { publicKey, privateKey } = generateKeyPairSync("ed25519");
@@ -17,11 +18,11 @@ const PUB = publicKey.export({ type: "spki", format: "pem" }) as string;
 const sig = (text: string) => cryptoSign(null, Buffer.from(text), privateKey).toString("base64");
 
 const MODELS = JSON.stringify({
-  schemaVersion: 1,
+  schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION,
   models: [{ id: "m", displayName: "M", contextLength: 1000, multimodal: false, thinkingLevels: [], webSearch: true }],
 });
 const PROVIDERS = JSON.stringify({
-  schemaVersion: 1,
+  schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION,
   providers: [{
     id: "p", name: "P", brand: "P",
     credential: { kind: "env", envVar: "X" },
@@ -109,7 +110,7 @@ describe("fetchAndCacheRemoteRegistry", () => {
   });
 
   it("rejects a structurally invalid (but correctly signed) table", async () => {
-    const badModels = JSON.stringify({ schemaVersion: 1, models: [{ id: "x" }] });
+    const badModels = JSON.stringify({ schemaVersion: MODEL_REGISTRY_SCHEMA_VERSION, models: [{ id: "x" }] });
     mockFetch({
       [`${BASE}/models.json`]: badModels,
       [`${BASE}/models.json.sig`]: sig(badModels),

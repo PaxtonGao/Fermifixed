@@ -56,13 +56,11 @@ fermi oauth logout
 
 运行 `fermi init` 时，其中一个提供商选项是 **OpenAI (ChatGPT Login)**。选择它会触发 OAuth 登录流程。随后 Fermi 会为该提供商保存内部 OAuth 标记，并从 `~/.fermi/state/oauth.json` 解析实际 access token，因此不需要 API-key 环境变量。如果该提供商已配置，之后可以用 `/model` 切回它。
 
-认证后，以下模型可用：
+Fermi 提供以下当前候选模型；在该后端上均保守限制为 400K 上下文：
 
-- GPT-5.2 Codex
-- GPT-5.3 Codex
-- GPT-5.4
-- GPT-5.4 Mini
-- GPT-5.5（上下文上限 400K，而标准 API 为 1M）
+- GPT-5.6 Sol
+- GPT-5.6 Terra
+- GPT-5.6 Luna
 
 ## 限制
 
@@ -70,4 +68,4 @@ ChatGPT OAuth 后端与标准 OpenAI API 有一些差异：
 
 - 请求会携带 `store: false`（对话不会存储在 OpenAI 侧）。
 - 该端点不提供原生 web search。
-- 可用性取决于你的 ChatGPT 订阅计划。
+- 可用性取决于你的 ChatGPT 订阅计划和后端目录。

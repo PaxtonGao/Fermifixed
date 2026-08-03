@@ -32,7 +32,7 @@ Fermi 会从安装包加载内置默认值，并从 `~/.fermi/` 加载用户覆�
 {
   "context_budget_percent": 80,
   "permission_mode": "reversible",
-  "default_model": "anthropic:claude-opus-4-6",
+  "default_model": "anthropic:claude-opus-5",
   "thinking_level": "high"
 }
 ```
