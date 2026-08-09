@@ -39,6 +39,7 @@ function makeSession(
       maxTokens: number;
       contextLength: number;
       supportsMultimodal: boolean;
+      thinkingLevels?: readonly string[];
     }>;
     initialModelConfigName?: string;
     agentTemplates?: Record<string, any>;
@@ -53,6 +54,7 @@ function makeSession(
       maxTokens: 256,
       contextLength: 8192,
       supportsMultimodal: false,
+      thinkingLevels: ["none", "low", "medium", "high"],
     },
   };
   const initialModelConfigName = options?.initialModelConfigName ?? "test-model";
@@ -253,6 +255,35 @@ describe("session storage lifecycle", () => {
       });
 
       session.resetForNewSession(store);
+
+      expect(session.thinkingLevel).toBe("high");
+    } finally {
+      rmSync(baseDir, { recursive: true, force: true });
+      rmSync(projectRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("uses configured thinking levels for an unknown model", () => {
+    const baseDir = makeTempDir("fermi-lifecycle-base-");
+    const projectRoot = makeTempDir("fermi-lifecycle-project-");
+    try {
+      const store = new SessionStore({ baseDir, projectPath: projectRoot });
+      const session = makeSession(projectRoot, store, {
+        modelConfigs: {
+          "custom-model": {
+            name: "custom-model",
+            provider: "custom",
+            model: "gpt-5.6-terra",
+            maxTokens: 32000,
+            contextLength: 128000,
+            supportsMultimodal: true,
+            thinkingLevels: ["none", "low", "medium", "high"],
+          },
+        },
+        initialModelConfigName: "custom-model",
+      });
+
+      session.thinkingLevel = "high";
 
       expect(session.thinkingLevel).toBe("high");
     } finally {

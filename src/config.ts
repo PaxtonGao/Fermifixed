@@ -49,6 +49,7 @@ export interface ModelConfig {
   contextLength: number;
   supportsMultimodal: boolean;
   supportsThinking: boolean;
+  thinkingLevels?: readonly string[];
   thinkingBudget: number;
   supportsWebSearch: boolean;
   transportProtocol: TransportProtocol;
@@ -626,7 +627,9 @@ export class Config {
           supports_multimodal: m.multimodal ?? false,
           supports_web_search: m.webSearch ?? false,
           ...(m.maxOutputTokens ? { max_tokens: m.maxOutputTokens } : {}),
-          ...(m.thinkingLevels?.length ? { supports_thinking: true } : {}),
+          ...(m.thinkingLevels?.length
+            ? { supports_thinking: true, thinking_levels: m.thinkingLevels }
+            : {}),
         };
       }
     }
@@ -681,7 +684,7 @@ export class Config {
     const knownKeys = new Set([
       "provider", "model", "api_key", "base_url",
       "temperature", "max_tokens", "context_length",
-      "supports_multimodal", "supports_thinking", "thinking_budget",
+      "supports_multimodal", "supports_thinking", "thinking_levels", "thinking_budget",
       "supports_web_search",
       "transport_protocol", "thinking_encryption", "sealed_schema",
     ]);
@@ -696,6 +699,12 @@ export class Config {
     const thinkingBudget = optionalConfigNumberField(name, cfg, "thinking_budget") ?? 0;
     const supportsMultimodalOverride = optionalConfigBooleanField(name, cfg, "supports_multimodal");
     const supportsThinkingOverride = optionalConfigBooleanField(name, cfg, "supports_thinking");
+    const thinkingLevels = cfg["thinking_levels"];
+    if (thinkingLevels !== undefined && (
+      !Array.isArray(thinkingLevels) || thinkingLevels.some((level) => typeof level !== "string")
+    )) {
+      throw new Error(`Invalid model config '${name}': field 'thinking_levels' must be a string array`);
+    }
     const supportsWebSearchOverride = optionalConfigBooleanField(name, cfg, "supports_web_search");
     const transportProtocol = optionalConfigEnumField(
       name,
@@ -732,6 +741,7 @@ export class Config {
         modelName,
         supportsThinkingOverride,
       ),
+      thinkingLevels: thinkingLevels as string[] | undefined,
       thinkingBudget,
       supportsWebSearch: getWebSearchSupport(
         modelName,

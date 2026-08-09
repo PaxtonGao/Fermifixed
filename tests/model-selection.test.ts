@@ -61,4 +61,30 @@ describe("runtime model resolution", () => {
     expect(typeof resolved.modelConfig.apiKey).toBe("string");
     expect(resolved.modelConfig.apiKey.length).toBeGreaterThan(0);
   });
+
+  it("materializes the gpt-5.6-terra agent pin with its configured thinking level", () => {
+    const session = makeSession();
+    session.config.upsertModelRaw("custom:gpt-5.6-terra", {
+      provider: "custom",
+      model: "gpt-5.6-terra",
+      api_key: "dummy-key",
+      base_url: "https://example.test/v1",
+      supports_multimodal: true,
+      supports_thinking: true,
+      thinking_levels: ["none", "low", "medium", "high", "xhigh", "max"],
+    });
+
+    const resolved = resolveAgentModelEntry(session, {
+      provider: "custom",
+      selection_key: "gpt-5.6-terra",
+      model_id: "gpt-5.6-terra",
+      thinking_level: "high",
+    });
+
+    expect(resolved.modelConfig).toMatchObject({
+      provider: "custom",
+      model: "gpt-5.6-terra",
+    });
+    expect(resolved.thinkingLevel).toBe("high");
+  });
 });

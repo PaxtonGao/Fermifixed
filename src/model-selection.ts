@@ -235,11 +235,16 @@ export function resolveModelIdentity(
  * resolveModelTierEntry / resolveAgentModelEntry (resolve path). Direct
  * settings.json edits are caught at resolve time.
  */
-export function validateThinkingLevelForModel(modelId: string, thinkingLevel: string, source: string): void {
+export function validateThinkingLevelForModel(
+  modelId: string,
+  thinkingLevel: string,
+  source: string,
+  configuredLevels?: readonly string[],
+): void {
   if (!thinkingLevel) {
     throw new Error(`${source}: missing thinking_level. Re-configure the entry.`);
   }
-  const native = getThinkingLevels(modelId);
+  const native = configuredLevels ?? getThinkingLevels(modelId);
   if (native.length === 0) {
     if (thinkingLevel !== "none") {
       throw new Error(
@@ -248,7 +253,7 @@ export function validateThinkingLevelForModel(modelId: string, thinkingLevel: st
     }
     return;
   }
-  const eligible = getTierEligibleThinkingLevels(modelId);
+  const eligible = native.filter((level) => level !== "off" && level !== "none");
   if (!eligible.includes(thinkingLevel)) {
     throw new Error(
       `${source}: thinking_level '${thinkingLevel}' is not a valid sub-agent thinking level for model '${modelId}'. ` +
@@ -271,6 +276,7 @@ export function resolveModelTierEntry(
     modelConfig.model || entry.model_id,
     entry.thinking_level,
     `Model tier`,
+    modelConfig.thinkingLevels,
   );
   return {
     ...resolved,
@@ -293,6 +299,7 @@ export function resolveAgentModelEntry(
     modelConfig.model || entry.model_id,
     entry.thinking_level,
     `Agent model pin`,
+    modelConfig.thinkingLevels,
   );
   return {
     ...resolved,

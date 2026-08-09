@@ -1,0 +1,7 @@
+type: agent
+name: eyer
+description: "Vision specialist — reads and describes images and screenshots. Use when the main model cannot view an image."
+system_prompt_file: system_prompt.md
+tool_tier: read_only
+mcp_tools: none
+max_tool_rounds: 200

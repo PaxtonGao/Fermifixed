@@ -3147,7 +3147,10 @@ export class Session {
   }
 
   private _resolveThinkingLevelForModel(modelName: string, preferredLevel: string): string {
-    const levels = getThinkingLevels(modelName);
+    const configuredLevels = this.primaryAgent.modelConfig.model === modelName
+      ? this.primaryAgent.modelConfig.thinkingLevels
+      : undefined;
+    const levels = configuredLevels ?? getThinkingLevels(modelName);
     const highest = levels.length > 0 ? levels[levels.length - 1] : undefined;
     // Non-thinking model — no thinking level to set
     if (!highest) return "none";

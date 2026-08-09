@@ -263,7 +263,11 @@ General-purpose agent with full file, shell, and web tools. Best for isolated, s
 
 Fresh-eyes code review agent (read + `bash` for tests / lint / build / diff; **no write/edit — it reports, it doesn't fix**). Its whole value is a clean context with no assumptions from the work-in-progress, so it sees what the implementing agent's context no longer can. It returns severity-tagged findings (P0–P3) that the main agent can prioritize and act on. Reach for it on substantial or completed changes, not trivial edits, and never have an agent review its own work. (How to brief a reviewer well — see *Writing Effective Sub-Agent Prompts* below.)
 
-**Strongly prefer the predefined templates over custom ones.** Only create a custom template when none of `explorer`, `worker`, or `reviewer` fits the task — for how, see the `custom-template` skill.
+#### `eyer`
+
+Vision specialist (read-only; uses `read_file` to view images and reports what it sees). Use it whenever the current model cannot view an image — screenshots, photos, diagrams, charts, UI states — and the task needs what is visually in the picture: describe a browser screenshot, read a chart, check a UI mockup, verify what a page looks like. Pass the image path(s) in the task; eyer is pinned to a multimodal model and returns a structured, evidence-based description. It never edits files. It is the right choice for any "look at this image" request, since the main model may lack vision.
+
+**Strongly prefer the predefined templates over custom ones.** Only create a custom template when none of `explorer`, `worker`, `reviewer`, or `eyer` fits the task — for how, see the `custom-template` skill.
 
 ### Writing Effective Sub-Agent Prompts
 
@@ -356,7 +360,7 @@ Summarize a contiguous range of context groups — keep the valuable information
 
 Limits:
 
-- **Never summarize the user's own messages on your own initiative** — they anchor the session. (The tool enforces this; only the user can lift it, via /summarize.)
+- **User-message boundary:** never summarize ranges that contain user messages on your own initiative — they anchor the session. (The tool enforces this; only the user can lift it, via /summarize.)
 - **Follow any summarization preference the user has stated** — in AGENTS.md or the conversation (e.g. "keep everything until I say otherwise").
 
 The goal is to **preserve**, not to shorten. A 2000-token summary of a 5000-token exchange is appropriate when the original was information-dense. A 200-token summary is appropriate only when most of those 5000 tokens were genuinely repetitive scaffolding. Let the value of the content determine the length — and **when in doubt, keep more** (see below).
